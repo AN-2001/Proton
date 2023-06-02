@@ -1,13 +1,3 @@
-/******************************************************************************\
-*  proton.c                                                                     *
-*                                                                              *
-*  SDL Prototype project implements some things I learned from doom/quake      *
-*  source code.                                                                *
-*                                                                              *
-*              Written by Abed Na'ran                          May 2023        *
-*                                                                              *
-\******************************************************************************/
-
 #include <SDL2/SDL.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -23,6 +13,7 @@
 
 #define EVENT_HEADER(i) (void)Event;
 #define MSEC_PER_TICK ((1.0 / TICKS_PER_SEC) * 1e3)
+#define INTRO_LEN (200.f - 1)
 
 static SDL_Window *MainWindow;
 static SDL_Renderer *MainRenderer;
@@ -74,15 +65,14 @@ IntType
     MouseWheel = 0,
     LastMouseWheel = 0;
 
+/* Add new states here.                                                       */
 struct {
     char Name[BUFF_SIZE_SMALL];
     void (*Update)(IntType Delta);
     void (*Draw)();
 } StateInfo[GAME_STATE_TOTAL] = {
-    {"Start", DoStart, DrawStart},
-    {"Curves", CurvesUpdate, CurvesDraw},
-    {"FilePicker", FilePickerUpdate, FilePickerDraw},
-    {"Menu", MenuUpdate, MenuDraw},
+    {"Start", DoStart, DrawStart}, /* The state below will run after start.   */
+    {"NONE", NULL, NULL},
 };
 
 int main(int argc, const char *argv[])
@@ -90,8 +80,8 @@ int main(int argc, const char *argv[])
     SDL_Event CurrentEvent;
     IntType DT, i, NumEvents, CT, LT, DeltaTime;
 
-    if (SDL_Init(SDL_INIT_EVERYTHING)) {
-        LogError("COULDN'T START SDL");
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER)) {
+        LogError("COULDN'T START SDL: %s.", SDL_GetError());
         return 1;
     }
 
@@ -103,13 +93,13 @@ int main(int argc, const char *argv[])
                                   SDL_WINDOW_ALWAYS_ON_TOP);
 
     if (!MainWindow) {
-        LogError("COULDN'T CREATE THE MAIN WINDOW");
+        LogError("COULDN'T CREATE THE MAIN WINDOW: %s.", SDL_GetError());
         return 1;
     }
 
     MainRenderer = SDL_CreateRenderer(MainWindow, -1, SDL_RENDERER_ACCELERATED);
     if (!MainRenderer) {
-        LogError("COULDN'T CREATE THE MAIN RENDERER");
+        LogError("COULDN'T CREATE THE MAIN RENDERER: %s.", SDL_GetError());
         return (SDL_DestroyWindow(MainWindow), 1);
     }
 
@@ -227,6 +217,7 @@ int main(int argc, const char *argv[])
     RendererFree();
     SDL_DestroyRenderer(MainRenderer);
     SDL_DestroyWindow(MainWindow);
+    SDL_Quit();
     LogInfo("Done!");
     return 0;
 }
@@ -277,21 +268,15 @@ void HandleRender()
                 GameStateTicks[i] != INACTIVE)
             StateInfo[i].Draw();
 
-    if (Debug) {
-        RendererSetFGColour(0, 255, 0);
-        for (i = 0; i < AABB_TOTAL; i++)
-            RendererDrawRectangle(AABB[i][0], AABB[i][1]);
-    }
 }
 
 void DoStart(IntType DeltaTime)
 {
     (void)DeltaTime;
 
-   if (GAME_STATE_TIMER(GAME_STATE_START) == 50) {
+   if (GAME_STATE_TIMER(GAME_STATE_START) == INTRO_LEN) {
         GameState[GAME_STATE_START] = FALSE;
-        GameState[GAME_STATE_CURVES] = TRUE;
-        Timer[0] = START;
+        GameState[1] = TRUE;
    }
 }
 
@@ -302,11 +287,13 @@ void DrawStart()
     if (GAME_STATE_TIMER(GAME_STATE_START) == 0)
         RendererInit();
 
-   t = ANIM_PARAM(GAME_STATE_TIMER(GAME_STATE_START), 50.f);
+   t = ANIM_PARAM(GAME_STATE_TIMER(GAME_STATE_START), INTRO_LEN);
    t = Casteljau1D(t, EaseIn);
    t = ANIM(t, 255, 0);
 
    RendererSetBGColour(t, t, t);
    RendererSetFGAColour(0, 0, 0, t);
    RendererDrawText("PROTON", POINT(WIN_WIDTH / 2.f - 60, WIN_HEIGHT / 2.f));
+
+   RendererFillCircle(Mouse, 10);
 }

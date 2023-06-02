@@ -1,13 +1,5 @@
-/******************************************************************************\
-*  proton.h                                                                    *
-*                                                                              *
-*  Contains basic project definitions.                                         *
-*                                                                              *
-*              Written by Abed Na'ran                          May 2023        *
-*                                                                              *
-\******************************************************************************/
-#ifndef CONFIG_H 
-#define CONFIG_H 
+#ifndef PROTON_ENGINE_H
+#define PROTON_ENGINE_H
 #include <stdio.h>
 #include <stdarg.h>
 #define EPS (1e-4)
@@ -51,7 +43,7 @@
 #define AABB_CLICK_TIMER(NUM) \
         (AABBClickTicks[NUM] == INACTIVE ? INACTIVE : Tick - AABBClickTicks[STATE])
 #define ANIM_PARAM(TIMER, TICKS) \
-        MIN(MAX((TIMER) / (TICKS), 0.f), 1.f) 
+        MIN(MAX((TIMER) / ((RealType)TICKS), 0.f), 1.f) 
 #define ANIM(T, START, END) \
         ((START) * (1.f - (T)) + (END) * (T))
 
@@ -152,4 +144,6 @@ static inline void LogError(char *Format, ...)
     va_end(list);
     fflush(stderr);
 }
-#endif /* CONFIG_H */
+
+int ProtonEngineRun(int argc, const char *argv[]);
+#endif /* PROTON_ENGINE_H */

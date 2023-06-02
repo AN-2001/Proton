@@ -12,10 +12,10 @@
 #include <string.h>
 #include "GL/gl.h"
 
-#define CIRCLE_RES (8)
+#define CIRCLE_RES (32)
+#define TRANSFORM_STACK_SIZE (32)
 #define TRANS_APPLY_POINT(T, P) TransformApply(T, P, TRUE)
 #define TRANS_APPLY_VEC(T, V) TransformApply(T, V, FALSE)
-#define TRANSFORM_STACK_SIZE (256)
 
 static SDL_Renderer
     *RendererInstance = NULL;
@@ -189,7 +189,6 @@ void RendererRenderFrame()
                                              Background.a * 255);
     SDL_RenderClear(RendererInstance);
     DrawingFunc();
-    SDL_RenderFlush(RendererInstance);
     SDL_RenderPresent(RendererInstance);
 }
 
