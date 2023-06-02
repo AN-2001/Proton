@@ -1,16 +1,11 @@
-#include "renderer.h"
+#include <SDL2/SDL.h>
 #include "SDL2/SDL_ttf.h"
-#include "SDL_mutex.h"
-#include "SDL_rect.h"
-#include "SDL_render.h"
-#include "SDL_surface.h"
-#include "proton.h"
 #include <math.h>
 #include <memory.h>
 #include <stdint.h>
-#include <SDL2/SDL.h>
 #include <string.h>
-#include "GL/gl.h"
+#include "renderer.h"
+#include "proton.h"
 
 #define CIRCLE_RES (32)
 #define TRANSFORM_STACK_SIZE (32)
@@ -192,22 +187,22 @@ void RendererRenderFrame()
     SDL_RenderPresent(RendererInstance);
 }
 
-void RendererSetFGColour(IntType r, IntType g, IntType b)
+void RendererSetFG(IntType r, IntType g, IntType b)
 {
     Foreground = COLOUR(r, g, b, 255);
 }
 
-void RendererSetBGColour(IntType r, IntType g, IntType b)
+void RendererSetBG(IntType r, IntType g, IntType b)
 {
     Background = COLOUR(r, g, b, 255);
 }
 
-void RendererSetFGAColour(IntType r, IntType g, IntType b, IntType a)
+void RendererSetFGA(IntType r, IntType g, IntType b, IntType a)
 {
     Foreground = COLOUR(r, g, b, a);
 }
 
-void RendererSetBGAColour(IntType r, IntType g, IntType b, IntType a)
+void RendererSetBGA(IntType r, IntType g, IntType b, IntType a)
 {
     Background = COLOUR(r, g, b, a);
 }
@@ -215,6 +210,10 @@ void RendererSetBGAColour(IntType r, IntType g, IntType b, IntType a)
 void RendererDrawPoint(PointStruct Point)
 {
     Point = TRANS_APPLY_POINT(Transform, Point);
+    if (Point.x < 0 || Point.x >= WIN_WIDTH ||
+        Point.y < 0 || Point.y >= WIN_HEIGHT)
+        return;
+
     SDL_SetRenderDrawColor(RendererInstance, Foreground.r * 255,
                                              Foreground.g * 255,
                                              Foreground.g * 255,
@@ -226,6 +225,13 @@ void RendererDrawLine(PointStruct P1, PointStruct P2)
 {
     P1 = TRANS_APPLY_POINT(Transform, P1);
     P2 = TRANS_APPLY_POINT(Transform, P2);
+
+    if ((P1.x < 0 || P1.x >= WIN_WIDTH ||
+        P1.y < 0 || P1.y >= WIN_HEIGHT) &&
+        (P2.x < 0 || P2.x >= WIN_WIDTH ||
+        P2.y < 0 || P2.y >= WIN_HEIGHT))
+        return;
+
     SDL_SetRenderDrawColor(RendererInstance, Foreground.r * 255,
                                              Foreground.g * 255,
                                              Foreground.b * 255,
@@ -236,53 +242,65 @@ void RendererDrawLine(PointStruct P1, PointStruct P2)
 void RendererDrawCircle(PointStruct Centre, RealType Radius)
 {
     IntType i;
-    RealType t1, t2;
-    PointStruct Tmp1, Tmp2,
-        Rad = POINT(Radius, Radius);
+    RealType t1, t2, S;
+    PointStruct Tmp1, Tmp2;
 
     Centre = TRANS_APPLY_POINT(Transform, Centre);
-    Rad = TRANS_APPLY_VEC(Transform, Rad);
+    S = sqrt(Transform[0][0] * Transform[1][1] - 
+             Transform[0][1] * Transform[1][0]);
+    Radius = Radius * S;
+
     SDL_SetRenderDrawColor(RendererInstance, Foreground.r * 255,
                                              Foreground.g * 255,
                                              Foreground.b * 255,
                                              Foreground.a * 255);
-    for (i = 0; i < CIRCLE_RES; i++) {
+    for (i = 0; i <= CIRCLE_RES; i++) {
         t1 = (i / (RealType)CIRCLE_RES) * M_PI * 2;
         t2 = ((i + 1) / (RealType)CIRCLE_RES) * M_PI * 2;
-        Tmp1.x = Centre.x + Rad.x * cos(t1);
-        Tmp1.y = Centre.y + Rad.x * sin(t1);
+        Tmp1.x = Centre.x + Radius * cos(t1);
+        Tmp1.y = Centre.y + Radius * sin(t1);
 
-        Tmp2.x = Centre.x + Rad.x * cos(t2);
-        Tmp2.y = Centre.y + Rad.x * sin(t2);
+        Tmp2.x = Centre.x + Radius * cos(t2);
+        Tmp2.y = Centre.y + Radius * sin(t2);
         SDL_RenderDrawLine(RendererInstance, Tmp1.x, Tmp1.y, Tmp2.x, Tmp2.y);
     }
 }
 
 void RendererFillCircle(PointStruct Centre, RealType Radius)
 {
-    IntType i;
-    RealType y, R, Start, End, v;
-    PointStruct 
-        Rad = POINT(Radius, 0);
+    IntType i, y, Start, End;
+    RealType R, S, v;
 
     Centre = TRANS_APPLY_POINT(Transform, Centre);
-    Rad = TRANS_APPLY_VEC(Transform, Rad);
-    R = Rad.x * Rad.x + Rad.y * Rad.y;
-    End = sqrt(R);
-    Start = -End;
+    S = sqrt(Transform[0][0] * Transform[1][1] - 
+             Transform[0][1] * Transform[1][0]);
+    Radius = Radius * S;
+    Start = Centre.y - Radius;
+    End = Centre.y + Radius;
+    if (Start >= WIN_HEIGHT || End < 0)
+        return;
 
+    if (Start < 0)
+        Start = -Centre.y;
+    else
+        Start = -Radius;
+
+    if (End >= WIN_HEIGHT)
+        End = WIN_HEIGHT - 1 - Centre.y;
+    else
+        End = Radius;
+    R = Radius * Radius;
     SDL_SetRenderDrawColor(RendererInstance, Foreground.r * 255,
                                              Foreground.g * 255,
                                              Foreground.b * 255,
                                              Foreground.a * 255);
-    for (i = Start + 1; i < End; i++) {
-        v = sqrt(R - i * i);
+    for (i = Start; i <= End; i++) {
         y = Centre.y + i;
-
+        v = sqrt(R - i * i);
         SDL_RenderDrawLine(RendererInstance,
-                           Centre.x - v,
+                           MAX(Centre.x - v, 0),
                            y,
-                           Centre.x + v,
+                           MIN(Centre.x + v, WIN_WIDTH),
                            y);
     }
 }

@@ -1,9 +1,8 @@
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_render.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
-#include "SDL_events.h"
-#include "SDL_video.h"
 #include "feel.h"
 #include "proton.h"
 #include "renderer.h"
@@ -38,9 +37,9 @@ BoolType
         {[ 0 ... KEYS_TOTAL - 1 ] = 0},
     LastKeys[KEYS_TOTAL] =
         {[ 0 ... KEYS_TOTAL - 1 ] = 0},
-    MouseKeys[MOUSE_KEYS_TOTAL] =
+    Buttons[MOUSE_KEYS_TOTAL] =
         {[ 0 ... MOUSE_KEYS_TOTAL - 1 ] = 0},
-    LastMouseKeys[MOUSE_KEYS_TOTAL] =
+    LastButtons[MOUSE_KEYS_TOTAL] =
         {[ 0 ... MOUSE_KEYS_TOTAL - 1 ] = 0},
     GameState[GAME_STATE_TOTAL] = 
         {[ 0 ... GAME_STATE_TOTAL - 1 ] = 0},
@@ -72,7 +71,7 @@ struct {
     void (*Draw)();
 } StateInfo[GAME_STATE_TOTAL] = {
     {"Start", DoStart, DrawStart}, /* The state below will run after start.   */
-    {"NONE", NULL, NULL},
+    {"Curves", CurvesUpdate, CurvesDraw},
 };
 
 int main(int argc, const char *argv[])
@@ -97,7 +96,10 @@ int main(int argc, const char *argv[])
         return 1;
     }
 
-    MainRenderer = SDL_CreateRenderer(MainWindow, -1, SDL_RENDERER_ACCELERATED);
+    MainRenderer = SDL_CreateRenderer(MainWindow,
+                                      -1,
+                                      SDL_RENDERER_ACCELERATED |
+                                      SDL_RENDERER_PRESENTVSYNC);
     if (!MainRenderer) {
         LogError("COULDN'T CREATE THE MAIN RENDERER: %s.", SDL_GetError());
         return (SDL_DestroyWindow(MainWindow), 1);
@@ -113,12 +115,8 @@ int main(int argc, const char *argv[])
     DeltaTime = 0;
     while (CanRun) {
         /* Do nothing if we're out of focus to conserve CPU.                  */
-        if (!(SDL_GetWindowFlags(MainWindow) & SDL_WINDOW_INPUT_FOCUS)) {
+        if (!(SDL_GetWindowFlags(MainWindow) & SDL_WINDOW_MOUSE_FOCUS))
             SDL_WaitEvent(NULL);
-            CT = LT = SDL_GetTicks();
-            DeltaTime = 0;
-            continue;
-        }
 
         /* First tick should run instantly.                                   */
         if (Tick != INACTIVE) {
@@ -126,7 +124,7 @@ int main(int argc, const char *argv[])
             DeltaTime += DT;
             if (DeltaTime < MSEC_PER_TICK) {
                 /* Sleep a bit to not waste CPU usage.                        */
-                SDL_Delay((MSEC_PER_TICK - DeltaTime) / 2);
+                SDL_Delay((IntType)((MSEC_PER_TICK - DeltaTime) / 2.f));
                 continue;
             }
         }
@@ -163,7 +161,7 @@ int main(int argc, const char *argv[])
                 if (AABBHighlightTicks[i] == INACTIVE)
                     AABBHighlightTicks[i] = Tick;
 
-                if (MouseKeys[M1]) {
+                if (Buttons[M1]) {
                     if (AABBClickTicks[i] == INACTIVE)
                         AABBClickTicks[i] = Tick;
                 } else
@@ -207,7 +205,7 @@ int main(int argc, const char *argv[])
         memcpy(&LastMouse, &Mouse, sizeof(Mouse));
         memcpy(&LastMouseWheel, &LastMouseWheel, sizeof(MouseWheel));
         memcpy(LastKeys, Keys, sizeof(Keys));
-        memcpy(LastMouseKeys, MouseKeys, sizeof(MouseKeys));
+        memcpy(LastButtons, Buttons, sizeof(Buttons));
 
         RendererRenderFrame();
         /* Reset the frame capper.                                            */
@@ -249,7 +247,7 @@ void HandleMousePressedEvent(SDL_Event Event)
 {
     EVENT_HEADER(3);
 
-    MouseKeys[Event.button.button] = Event.type == SDL_MOUSEBUTTONDOWN;
+    Buttons[Event.button.button] = Event.type == SDL_MOUSEBUTTONDOWN;
 }
 
 void HandleMouseWheelEvent(SDL_Event Event)
@@ -291,9 +289,7 @@ void DrawStart()
    t = Casteljau1D(t, EaseIn);
    t = ANIM(t, 255, 0);
 
-   RendererSetBGColour(t, t, t);
-   RendererSetFGAColour(0, 0, 0, t);
+   RendererSetBG(t, t, t);
+   RendererSetFGA(0, 0, 0, t);
    RendererDrawText("PROTON", POINT(WIN_WIDTH / 2.f - 60, WIN_HEIGHT / 2.f));
-
-   RendererFillCircle(Mouse, 10);
 }

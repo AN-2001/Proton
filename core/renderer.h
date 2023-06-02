@@ -24,10 +24,10 @@ void RendererPopTransform();
 PointStruct RendererScreenToWorld(PointStruct ScreenPos);
 PointStruct RendererWorldToScreen(PointStruct WorldPos);
 
-void RendererSetFGColour(IntType r, IntType g, IntType b);
-void RendererSetBGColour(IntType r, IntType g, IntType b);
-void RendererSetFGAColour(IntType r, IntType g, IntType b, IntType a);
-void RendererSetBGAColour(IntType r, IntType g, IntType b, IntType a);
+void RendererSetFG(IntType r, IntType g, IntType b);
+void RendererSetBG(IntType r, IntType g, IntType b);
+void RendererSetFGA(IntType r, IntType g, IntType b, IntType a);
+void RendererSetBGA(IntType r, IntType g, IntType b, IntType a);
 void RendererDrawPoint(PointStruct Point);
 void RendererDrawLine(PointStruct P1, PointStruct P2);
 void RendererDrawCircle(PointStruct Centre, RealType Radius);

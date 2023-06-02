@@ -24,7 +24,7 @@
 #define BUFF_SIZE (1024)
 #define BUFF_SIZE_SMALL (32)
 #define TICKS_PER_SEC (60)
-#define AABB_TOTAL (64)
+#define AABB_TOTAL (4096)
 #define MISC_TIMER_TOTAL (32)
 #define MAX_EVENTS_PER_TICK (32)
 #define KEYS_TOTAL (256)
@@ -39,9 +39,9 @@
 #define GAME_STATE_TIMER(STATE) \
         (GameStateTicks[STATE] == INACTIVE ? INACTIVE : Tick - GameStateTicks[STATE])
 #define AABB_HIGHLIGHT_TIMER(NUM) \
-        (AABBHighlightTicks[NUM] == INACTIVE ? INACTIVE : Tick - AABBHighlightTicks[STATE])
+        (AABBHighlightTicks[NUM] == INACTIVE ? INACTIVE : Tick - AABBHighlightTicks[NUM])
 #define AABB_CLICK_TIMER(NUM) \
-        (AABBClickTicks[NUM] == INACTIVE ? INACTIVE : Tick - AABBClickTicks[STATE])
+        (AABBClickTicks[NUM] == INACTIVE ? INACTIVE : Tick - AABBClickTicks[NUM])
 #define ANIM_PARAM(TIMER, TICKS) \
         MIN(MAX((TIMER) / ((RealType)TICKS), 0.f), 1.f) 
 #define ANIM(T, START, END) \
@@ -103,9 +103,9 @@ extern IntType AABBHighlightTicks[AABB_TOTAL];
 extern IntType AABBClickTicks[AABB_TOTAL];
 extern IntType Tick;
 extern BoolType Keys[KEYS_TOTAL];
-extern BoolType MouseKeys[MOUSE_KEYS_TOTAL];
+extern BoolType Buttons[MOUSE_KEYS_TOTAL];
 extern BoolType LastKeys[KEYS_TOTAL];
-extern BoolType LastMouseKeys[MOUSE_KEYS_TOTAL];
+extern BoolType LastButtons[MOUSE_KEYS_TOTAL];
 extern BoolType CanRun;
 extern BoolType Debug;
 
