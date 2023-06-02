@@ -14,6 +14,7 @@
 #include <string.h>
 #include "SDL_events.h"
 #include "SDL_video.h"
+#include "feel.h"
 #include "proton.h"
 #include "renderer.h"
 #include "curves.h"
@@ -84,12 +85,12 @@ struct {
     {"Menu", MenuUpdate, MenuDraw},
 };
 
-int main()
+int main(int argc, const char *argv[])
 {
     SDL_Event CurrentEvent;
     IntType DT, i, NumEvents, CT, LT, DeltaTime;
 
-    if (SDL_Init(SDL_INIT_VIDEO)) {
+    if (SDL_Init(SDL_INIT_EVERYTHING)) {
         LogError("COULDN'T START SDL");
         return 1;
     }
@@ -115,7 +116,7 @@ int main()
     RendererBind(MainRenderer, HandleRender);
     GameState[GAME_STATE_START] = TRUE;
     LogInfo(SPLASH);
-    LogInfo("Initialized.\n");
+    LogInfo("Initialized.");
 
     CT = SDL_GetTicks();
     LT = SDL_GetTicks();
@@ -186,7 +187,6 @@ int main()
         }
 
         /* Update game logic.                                                 */
-
         for (i = 0; i < MISC_TIMER_TOTAL; i++) {
             if (Timer[i] == RESET) {
                 TimerTicks[i] = Tick;    
@@ -227,7 +227,7 @@ int main()
     RendererFree();
     SDL_DestroyRenderer(MainRenderer);
     SDL_DestroyWindow(MainWindow);
-    LogInfo("Done!\n");
+    LogInfo("Done!");
     return 0;
 }
 
@@ -287,28 +287,26 @@ void HandleRender()
 void DoStart(IntType DeltaTime)
 {
     (void)DeltaTime;
-    IntType
-        TickDelta = Tick - GameStateTicks[GAME_STATE_START];
 
-    if (TickDelta == 100) {
+   if (GAME_STATE_TIMER(GAME_STATE_START) == 50) {
         GameState[GAME_STATE_START] = FALSE;
         GameState[GAME_STATE_CURVES] = TRUE;
-    }
+        Timer[0] = START;
+   }
 }
 
 void DrawStart()
 {
-    IntType
-        TickDelta = Tick - GameStateTicks[GAME_STATE_START];
     RealType t;
 
-    if (TickDelta == 0)
+    if (GAME_STATE_TIMER(GAME_STATE_START) == 0)
         RendererInit();
 
-    t = TickDelta / 100.f;
-    t = MIN(t, 1.f);
+   t = ANIM_PARAM(GAME_STATE_TIMER(GAME_STATE_START), 50.f);
+   t = Casteljau1D(t, EaseIn);
+   t = ANIM(t, 255, 0);
 
-    RendererSetBGColour(255 * (1 - t), 255 * (1 - t), 255 * (1 - t));
-    RendererSetFGColour(0, 0, 0);
-    RendererDrawText("PROTON", POINT(WIN_WIDTH / 2.f - 60, WIN_HEIGHT / 2.f));
+   RendererSetBGColour(t, t, t);
+   RendererSetFGAColour(0, 0, 0, t);
+   RendererDrawText("PROTON", POINT(WIN_WIDTH / 2.f - 60, WIN_HEIGHT / 2.f));
 }

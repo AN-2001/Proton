@@ -15,8 +15,15 @@ void RendererBind(SDL_Renderer *Instance, void (*DrawingFunc)());
 void RendererInit();
 void RendererFree();
 void RendererRenderFrame();
-void RendererPushTransform(PointStruct Translate, RealType Scale); 
+
+void RendererPushTransform();
+void RendererTranslate(PointStruct Point);
+void RendererScale(RealType Scale);
+void RendererRotate(RealType Ang);
 void RendererPopTransform();
+PointStruct RendererScreenToWorld(PointStruct ScreenPos);
+PointStruct RendererWorldToScreen(PointStruct WorldPos);
+
 void RendererSetFGColour(IntType r, IntType g, IntType b);
 void RendererSetBGColour(IntType r, IntType g, IntType b);
 void RendererSetFGAColour(IntType r, IntType g, IntType b, IntType a);
@@ -28,7 +35,5 @@ void RendererFillCircle(PointStruct Centre, RealType Radius);
 void RendererDrawRectangle(PointStruct TopLeft, PointStruct BottomRight);
 void RendererFillRectangle(PointStruct TopLeft, PointStruct BottomRight);
 void RendererDrawText(const char *Text, PointStruct Pos);
-PointStruct RendererScreenToWorld(PointStruct ScreenPos);
-PointStruct RendererWorldToScreen(PointStruct WorldPos);
 
 #endif /* RENDERER_H */

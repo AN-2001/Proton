@@ -28,7 +28,7 @@
                                           .b = ((z) / 255.f), \
                                           .a = ((w) / 255.f)}
 #define PROJ "PROTON"
-#define SPLASH "WRITTEN BY ABED NA'ARAN, COMPILED ON " __DATE__ "\n"
+#define SPLASH "WRITTEN BY ABED NA'ARAN, COMPILED ON " __DATE__
 #define BUFF_SIZE (1024)
 #define BUFF_SIZE_SMALL (32)
 #define TICKS_PER_SEC (60)
@@ -70,8 +70,6 @@
 typedef float RealType;
 typedef int IntType;
 typedef unsigned char BoolType;
-/* Can't be returned/set, no rotations, only scaling and translation.         */
-/* ******* TRIVIAL TO INVERT ***********                                      */
 typedef RealType MatType[2][3];
 typedef struct {
     RealType x, y; 
@@ -124,7 +122,7 @@ static inline void LogInfo(char *Format, ...)
     char Buff[BUFF_SIZE];
     va_list list;
 
-    sprintf(Buff, "<%s> %s", PROJ, Format);
+    sprintf(Buff, "<%s> %s\n", PROJ, Format);
     va_start(list, Format);
     vfprintf(stdout, Buff, list);
     va_end(list);
@@ -136,7 +134,7 @@ static inline void LogWarn(char *Format, ...)
     char Buff[BUFF_SIZE];
     va_list list;
 
-    sprintf(Buff, "<%s> %s", PROJ, Format);
+    sprintf(Buff, "<%s:WARNING:> %s\n", PROJ, Format);
     va_start(list, Format);
     vfprintf(stderr, Buff, list);
     va_end(list);
@@ -148,7 +146,7 @@ static inline void LogError(char *Format, ...)
     char Buff[BUFF_SIZE];
     va_list list;
 
-    sprintf(Buff, "<%s> %s", PROJ, Format);
+    sprintf(Buff, "<%s:ERROR:> %s\n", PROJ, Format);
     va_start(list, Format);
     vfprintf(stderr, Buff, list);
     va_end(list);

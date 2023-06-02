@@ -4,15 +4,17 @@
 #include "SDL_rect.h"
 #include "SDL_render.h"
 #include "SDL_surface.h"
-#include "transform.h"
 #include "proton.h"
 #include <math.h>
 #include <memory.h>
 #include <stdint.h>
 #include <SDL2/SDL.h>
+#include <string.h>
 #include "GL/gl.h"
 
 #define CIRCLE_RES (8)
+#define TRANS_APPLY_POINT(T, P) TransformApply(T, P, TRUE)
+#define TRANS_APPLY_VEC(T, V) TransformApply(T, V, FALSE)
 #define TRANSFORM_STACK_SIZE (256)
 
 static SDL_Renderer
@@ -25,16 +27,65 @@ static void
 static IntType
     TransformTop = -1;
 static MatType
-    TransformStack[TRANSFORM_STACK_SIZE];
+    TransformStack[TRANSFORM_STACK_SIZE],
+    InverseTransformStack[TRANSFORM_STACK_SIZE];
 const static MatType 
         Identity = {
             {1.f, 0.f, 0.f},
             {0.f, 1.f, 0.f},
         };
-static MatType Transform, TransformInverse;
+static MatType Transform, InverseTransform;
 static TTF_Font
     *Font = NULL;
     
+static inline PointStruct TransformApply(MatType Transform,
+                                  PointStruct Point,
+                                  BoolType IsPoint)
+{
+    return POINT(Point.x * Transform[0][0] +
+                 Point.y * Transform[0][1] +
+                 Transform[0][2] * IsPoint,
+
+                 Point.x * Transform[1][0] +
+                 Point.y * Transform[1][1] +
+                 Transform[1][2] * IsPoint);
+}
+
+static inline void TransformMult(MatType Left, MatType Right, MatType Dest)
+{
+    MatType Ret;
+
+    Ret[0][0] = Left[0][0] * Right[0][0] + Left[0][1] * Right[1][0];
+    Ret[1][0] = Left[1][0] * Right[0][0] + Left[1][1] * Right[1][0]; 
+
+    Ret[0][1] = Left[0][0] * Right[0][1] + Left[0][1] * Right[1][1];
+    Ret[1][1] = Left[1][0] * Right[0][1] + Left[1][1] * Right[1][1]; 
+
+    Ret[0][2] = Left[0][0] * Right[0][2] + Left[0][1] * Right[1][2] + Left[0][2];
+    Ret[1][2] = Left[1][0] * Right[0][2] + Left[1][1] * Right[1][2] + Left[1][2]; 
+
+    memcpy(Dest, Ret, sizeof(MatType));
+}
+
+static inline void TransformInvert(MatType Transform, MatType Inverse)
+{
+    RealType
+        Det = Transform[0][0] * Transform[1][1] -
+              Transform[0][1] * Transform[1][0];
+
+    Inverse[0][0] =  Transform[0][0] / Det;
+    Inverse[1][0] =  Transform[0][1] / Det;
+    Inverse[0][1] =  Transform[1][0] / Det;
+    Inverse[1][1] =  Transform[1][1] / Det;
+    
+    Inverse[0][2] = Inverse[0][0] * -Transform[0][2] +
+                    Inverse[0][1] * -Transform[1][2] ;
+
+    Inverse[1][2] = Inverse[1][0] * -Transform[0][2] +
+                    Inverse[1][1] * -Transform[1][2];
+
+}
+
 void RendererBind(SDL_Renderer *Instance, void (*Func)())
 {
     RendererInstance = Instance;
@@ -49,7 +100,7 @@ void RendererInit()
     TTF_SetFontStyle(Font, TTF_STYLE_BOLD);
     SDL_SetRenderDrawBlendMode(RendererInstance, SDL_BLENDMODE_BLEND);
     memcpy(Transform, Identity, sizeof(Transform));
-    memcpy(TransformInverse, Identity, sizeof(TransformInverse));
+    memcpy(InverseTransform, Identity, sizeof(InverseTransform));
 }
 
 void RendererFree()
@@ -57,25 +108,77 @@ void RendererFree()
     TTF_CloseFont(Font);
 }
 
-void RendererPushTransform(PointStruct Translate, RealType Scale)
+void RendererPushTransform()
 {
     TransformTop = MIN(TransformTop + 1, TRANSFORM_STACK_SIZE - 1);
-    TransformStack[TransformTop][0][0] =
-    TransformStack[TransformTop][1][1] = Scale; 
-    TransformStack[TransformTop][0][2] = Translate.x;
-    TransformStack[TransformTop][1][2] = Translate.y;
-    TransformMult(TransformStack[TransformTop], Transform, Transform);
-    TransformInvert(Transform, TransformInverse);
+
+    memcpy(TransformStack[TransformTop],
+           Transform,
+           sizeof(Transform));
+
+    memcpy(InverseTransformStack[TransformTop],
+           InverseTransform,
+           sizeof(InverseTransform));
+}
+
+void RendererTranslate(PointStruct Point)
+{
+    MatType
+        Trans;
+
+    memcpy(Trans, Identity, sizeof(Trans));
+    Trans[0][2] = Point.x;
+    Trans[1][2] = Point.y;
+
+    TransformMult(Trans, Transform, Transform);
+    TransformInvert(Transform, InverseTransform);
+}
+
+void RendererScale(RealType Scale)
+{
+    MatType
+        Trans;
+
+    memcpy(Trans, Identity, sizeof(Trans));
+    Trans[0][0] = Scale;
+    Trans[1][1] = Scale;
+
+    TransformMult(Trans, Transform, Transform);
+    TransformInvert(Transform, InverseTransform);
+}
+
+void RendererRotate(RealType Ang)
+{
+    MatType
+        Trans;
+    RealType
+        Cos = cosf(Ang),
+        Sin = sinf(Ang);
+
+    memcpy(Trans, Identity, sizeof(Trans));
+    Trans[0][0] = Cos;
+    Trans[0][1] = -Sin;
+    Trans[1][0] = Sin;
+    Trans[1][1] = Cos;
+
+    TransformMult(Trans, Transform, Transform);
+    TransformInvert(Transform, InverseTransform);
 }
 
 void RendererPopTransform()
 {
-    MatType Inverse;
+    if (TransformTop == -1)
+        return;
 
-    TransformInvert(TransformStack[TransformTop], Inverse);
-    TransformMult(Inverse, Transform, Transform);
-    TransformInvert(Transform, TransformInverse);
-    TransformTop = MAX(TransformTop - 1, 0);
+    memcpy(Transform,
+           TransformStack[TransformTop],
+           sizeof(Transform));
+
+    memcpy(InverseTransform,
+           InverseTransformStack[TransformTop],
+           sizeof(InverseTransform));
+
+    TransformTop = MAX(TransformTop - 1, -1);
 }
 
 void RendererRenderFrame() 
@@ -86,6 +189,7 @@ void RendererRenderFrame()
                                              Background.a * 255);
     SDL_RenderClear(RendererInstance);
     DrawingFunc();
+    SDL_RenderFlush(RendererInstance);
     SDL_RenderPresent(RendererInstance);
 }
 
@@ -158,21 +262,29 @@ void RendererDrawCircle(PointStruct Centre, RealType Radius)
 void RendererFillCircle(PointStruct Centre, RealType Radius)
 {
     IntType i;
-    RealType MinX, MaxX, y;
+    RealType y, R, Start, End, v;
     PointStruct 
-        Rad = POINT(Radius, Radius);
+        Rad = POINT(Radius, 0);
 
     Centre = TRANS_APPLY_POINT(Transform, Centre);
     Rad = TRANS_APPLY_VEC(Transform, Rad);
+    R = Rad.x * Rad.x + Rad.y * Rad.y;
+    End = sqrt(R);
+    Start = -End;
+
     SDL_SetRenderDrawColor(RendererInstance, Foreground.r * 255,
                                              Foreground.g * 255,
                                              Foreground.b * 255,
                                              Foreground.a * 255);
-    for (i = -Rad.x; i <= Rad.x; i++) {
-        MaxX = Centre.x + sqrtf(Rad.x * Rad.x - i * i);
-        MinX = Centre.x - sqrtf(Rad.x * Rad.x - i * i);
+    for (i = Start + 1; i < End; i++) {
+        v = sqrt(R - i * i);
         y = Centre.y + i;
-        SDL_RenderDrawLine(RendererInstance, MinX, y, MaxX, y);
+
+        SDL_RenderDrawLine(RendererInstance,
+                           Centre.x - v,
+                           y,
+                           Centre.x + v,
+                           y);
     }
 }
 
@@ -182,15 +294,35 @@ void RendererDrawRectangle(PointStruct TopLeft, PointStruct BottomRight)
 
     TopLeft = TRANS_APPLY_POINT(Transform, TopLeft);
     BottomRight = TRANS_APPLY_POINT(Transform, BottomRight);
-    Rect.x = TopLeft.x;
-    Rect.y = TopLeft.y;
-    Rect.w = BottomRight.x - TopLeft.x;
-    Rect.h = BottomRight.y - TopLeft.y;
+
     SDL_SetRenderDrawColor(RendererInstance, Foreground.r * 255,
                                              Foreground.g * 255,
                                              Foreground.b * 255,
                                              Foreground.a * 255);
-    SDL_RenderDrawRect(RendererInstance, &Rect);
+    SDL_RenderDrawLine(RendererInstance,
+                       TopLeft.x,
+                       TopLeft.y,
+                       BottomRight.x,
+                       TopLeft.y);
+
+    SDL_RenderDrawLine(RendererInstance,
+                       BottomRight.x,
+                       TopLeft.y,
+                       BottomRight.x,
+                       BottomRight.y);
+
+    SDL_RenderDrawLine(RendererInstance,
+                       BottomRight.x,
+                       BottomRight.y,
+                       TopLeft.x,
+                       BottomRight.y);
+
+    SDL_RenderDrawLine(RendererInstance,
+                       TopLeft.x,
+                       BottomRight.y,
+                       TopLeft.x,
+                       TopLeft.y);
+
 }
 
 void RendererFillRectangle(PointStruct TopLeft, PointStruct BottomRight)
@@ -212,7 +344,7 @@ void RendererFillRectangle(PointStruct TopLeft, PointStruct BottomRight)
 
 PointStruct RendererScreenToWorld(PointStruct ScreenPos)
 {
-    return TRANS_APPLY_POINT(TransformInverse, ScreenPos);
+    return TRANS_APPLY_POINT(InverseTransform, ScreenPos);
 }
 
 PointStruct RendererWorldToScreen(PointStruct WorldPos)
