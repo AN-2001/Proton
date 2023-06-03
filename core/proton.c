@@ -41,25 +41,17 @@ BoolType
         {[ 0 ... MOUSE_KEYS_TOTAL - 1 ] = 0},
     LastButtons[MOUSE_KEYS_TOTAL] =
         {[ 0 ... MOUSE_KEYS_TOTAL - 1 ] = 0},
-    GameState[GAME_STATE_TOTAL] = 
-        {[ 0 ... GAME_STATE_TOTAL - 1 ] = 0},
-    Timer[MISC_TIMER_TOTAL] = 
-        {[ 0 ... MISC_TIMER_TOTAL - 1 ] = 0},
-    LastGameState[GAME_STATE_TOTAL] = 
-        {[ 0 ... GAME_STATE_TOTAL - 1 ] = 0},
-    LastTimer[MISC_TIMER_TOTAL] = 
-        {[ 0 ... MISC_TIMER_TOTAL - 1 ] = 0},
+    TimerControllers[TIMER_CONTROLLED_TOTAL] =
+        {[ 0 ... TIMER_CONTROLLED_TOTAL - 1 ] = 0},
+    LastTimerControllers[TIMER_CONTROLLED_TOTAL] =
+        {[ 0 ... TIMER_CONTROLLED_TOTAL - 1 ] = 0},
+    AABBStatic[AABB_TOTAL] =
+        {[ 0 ... AABB_TOTAL - 1 ] = 0},
     CanRun = TRUE,
     Debug = FALSE;
 IntType
-    GameStateTicks[GAME_STATE_TOTAL] =
-            {[ 0 ... GAME_STATE_TOTAL - 1] = INACTIVE},
-    TimerTicks[MISC_TIMER_TOTAL] =
-            {[ 0 ... MISC_TIMER_TOTAL - 1] = INACTIVE},
-    AABBHighlightTicks[AABB_TOTAL] =
-            {[ 0 ... AABB_TOTAL - 1] = INACTIVE},
-    AABBClickTicks[AABB_TOTAL] =
-            {[ 0 ... AABB_TOTAL - 1] = INACTIVE},
+    TimersStartPoints[TIMER_TOTAL] =
+            {[ 0 ... TIMER_TOTAL - 1] = INACTIVE},
     Tick = INACTIVE,
     MouseWheel = 0,
     LastMouseWheel = 0;
@@ -69,7 +61,7 @@ struct {
     char Name[BUFF_SIZE_SMALL];
     void (*Update)(IntType Delta);
     void (*Draw)();
-} StateInfo[GAME_STATE_TOTAL] = {
+} StateInfo[GS_TOTAL] = {
     {"Start", DoStart, DrawStart}, /* The state below will run after start.   */
     {"Curves", CurvesUpdate, CurvesDraw},
 };
@@ -77,10 +69,10 @@ struct {
 int main(int argc, const char *argv[])
 {
     SDL_Event CurrentEvent;
-    IntType DT, i, NumEvents, CT, LT, DeltaTime;
+    IntType DT, i, j, NumEvents, CT, LT, DeltaTime;
 
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER)) {
-        LogError("COULDN'T START SDL: %s.", SDL_GetError());
+        ProtonLogError("COULDN'T START SDL: %s.", SDL_GetError());
         return 1;
     }
 
@@ -92,7 +84,7 @@ int main(int argc, const char *argv[])
                                   SDL_WINDOW_ALWAYS_ON_TOP);
 
     if (!MainWindow) {
-        LogError("COULDN'T CREATE THE MAIN WINDOW: %s.", SDL_GetError());
+        ProtonLogError("COULDN'T CREATE THE MAIN WINDOW: %s.", SDL_GetError());
         return 1;
     }
 
@@ -101,14 +93,15 @@ int main(int argc, const char *argv[])
                                       SDL_RENDERER_ACCELERATED |
                                       SDL_RENDERER_PRESENTVSYNC);
     if (!MainRenderer) {
-        LogError("COULDN'T CREATE THE MAIN RENDERER: %s.", SDL_GetError());
+        ProtonLogError("COULDN'T CREATE THE MAIN RENDERER: %s.", SDL_GetError());
         return (SDL_DestroyWindow(MainWindow), 1);
     }
 
     RendererBind(MainRenderer, HandleRender);
-    GameState[GAME_STATE_START] = TRUE;
-    LogInfo(SPLASH);
-    LogInfo("Initialized.");
+    RendererInit();
+    TIMER_START(GS_START);
+    ProtonLogInfo(SPLASH);
+    ProtonLogInfo("Initialized.");
 
     CT = SDL_GetTicks();
     LT = SDL_GetTicks();
@@ -155,51 +148,56 @@ int main(int argc, const char *argv[])
             }
         }
         
-        /* Update collision checkers with mouse.                              */
+
+
+        /* Update collision.                                                  */
         for (i = 0; i < AABB_TOTAL; i++) {
             if (AABB_IS_POINT_INSIDE(AABB[i], Mouse)) {
-                if (AABBHighlightTicks[i] == INACTIVE)
-                    AABBHighlightTicks[i] = Tick;
+                if (TimersStartPoints[AABB_HOVER + i] == INACTIVE) {
+                    TimersStartPoints[AABB_NHOVER + i] = INACTIVE;
+                    TimersStartPoints[AABB_HOVER + i] = Tick;
+                }
 
                 if (Buttons[M1]) {
-                    if (AABBClickTicks[i] == INACTIVE)
-                        AABBClickTicks[i] = Tick;
-                } else
-                    AABBClickTicks[i] = INACTIVE;
+                    if (TimersStartPoints[AABB_CLICK + i] == INACTIVE) {
+                        TimersStartPoints[AABB_NCLICK + i] = INACTIVE;
+                        TimersStartPoints[AABB_CLICK + i] = Tick;
+                    }
+                } else {
+                    if (TimersStartPoints[AABB_NCLICK + i] == INACTIVE) {
+                        TimersStartPoints[AABB_CLICK + i] = INACTIVE;
+                        TimersStartPoints[AABB_NCLICK + i] = Tick;
+                    }
+                }
 
             } else {
-                AABBHighlightTicks[i] = INACTIVE;
-                AABBClickTicks[i] = INACTIVE;
+                if (TimersStartPoints[AABB_NCLICK + i] == INACTIVE) {
+                    TimersStartPoints[AABB_CLICK + i] = INACTIVE;
+                    TimersStartPoints[AABB_NCLICK + i] = Tick;
+                }
+                if (TimersStartPoints[AABB_NHOVER + i] == INACTIVE) {
+                    TimersStartPoints[AABB_HOVER + i] = INACTIVE;
+                    TimersStartPoints[AABB_NHOVER + i] = Tick;
+                }
             }
 
         }
 
         /* Update game logic.                                                 */
-        for (i = 0; i < MISC_TIMER_TOTAL; i++) {
-            if (Timer[i] == RESET) {
-                TimerTicks[i] = Tick;    
-                Timer[i] = START;
-                LastTimer[i] = Timer[i];
-            } else if (Timer[i] != LastTimer[i]) {
-                TimerTicks[i] = Timer[i] ? Tick : INACTIVE; 
-                LastTimer[i] = Timer[i];
+        for (i = 0; i < TIMER_CONTROLLED_TOTAL; i++) {
+            if (TimerControllers[i] == RESET) {
+                TimersStartPoints[i] = Tick;    
+                TimerControllers[i] = START;
+                LastTimerControllers[i] = TimerControllers[i];
+            } else if (TimerControllers[i] != LastTimerControllers[i]) {
+                TimersStartPoints[i] = TimerControllers[i] ? Tick : INACTIVE; 
+                LastTimerControllers[i] = TimerControllers[i];
             }
         }
 
-        for (i = 0; i < GAME_STATE_TOTAL; i++) {
-            if (GameState[i] == RESET) {
-                GameStateTicks[i] = Tick;    
-                GameState[i] = START;
-                LastGameState[i] = GameState[i];
-            } else if (GameState[i] != LastGameState[i]) {
-                GameStateTicks[i] = GameState[i] ? Tick : INACTIVE; 
-                LastGameState[i] = GameState[i];
-            }
-        }
-
-        for (i = 0; i < GAME_STATE_TOTAL; i++)
+        for (i = 0; i < GS_TOTAL; i++)
             if (StateInfo[i].Update &&
-                    GameStateTicks[i] != INACTIVE)
+                    TimersStartPoints[GS_START + i] != INACTIVE)
                 StateInfo[i].Update(DeltaTime);
 
         memcpy(&LastMouse, &Mouse, sizeof(Mouse));
@@ -207,7 +205,7 @@ int main(int argc, const char *argv[])
         memcpy(LastKeys, Keys, sizeof(Keys));
         memcpy(LastButtons, Buttons, sizeof(Buttons));
 
-        RendererRenderFrame();
+        ProtonRenderFrame();
         /* Reset the frame capper.                                            */
         DeltaTime = 0;
     }
@@ -216,7 +214,7 @@ int main(int argc, const char *argv[])
     SDL_DestroyRenderer(MainRenderer);
     SDL_DestroyWindow(MainWindow);
     SDL_Quit();
-    LogInfo("Done!");
+    ProtonLogInfo("Done!");
     return 0;
 }
 
@@ -261,9 +259,9 @@ void HandleRender()
 {
     IntType i;
 
-    for (i = 0; i < GAME_STATE_TOTAL; i++)
+    for (i = 0; i < GS_TOTAL; i++)
         if (StateInfo[i].Draw && 
-                GameStateTicks[i] != INACTIVE)
+                TimersStartPoints[GS_START + i] != INACTIVE)
             StateInfo[i].Draw();
 
 }
@@ -272,9 +270,9 @@ void DoStart(IntType DeltaTime)
 {
     (void)DeltaTime;
 
-   if (GAME_STATE_TIMER(GAME_STATE_START) == INTRO_LEN) {
-        GameState[GAME_STATE_START] = FALSE;
-        GameState[1] = TRUE;
+   if (TIMER(GS_START) == INTRO_LEN) {
+        TIMER_STOP(GS_START);
+        TIMER_START(GS_START + 1);
    }
 }
 
@@ -282,14 +280,12 @@ void DrawStart()
 {
     RealType t;
 
-    if (GAME_STATE_TIMER(GAME_STATE_START) == 0)
-        RendererInit();
 
-   t = ANIM_PARAM(GAME_STATE_TIMER(GAME_STATE_START), INTRO_LEN);
+   t = ANIM_PARAM(TIMER(GS_START), INTRO_LEN);
    t = Casteljau1D(t, EaseIn);
    t = ANIM(t, 255, 0);
 
-   RendererSetBG(t, t, t);
-   RendererSetFGA(0, 0, 0, t);
-   RendererDrawText("PROTON", POINT(WIN_WIDTH / 2.f - 60, WIN_HEIGHT / 2.f));
+   ProtonSetBG(t, t, t);
+   ProtonSetFGA(0, 0, 0, t);
+   ProtonDrawText("PROTON", POINT(WIN_WIDTH / 2.f - 60, WIN_HEIGHT / 2.f));
 }

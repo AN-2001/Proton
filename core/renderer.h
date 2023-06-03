@@ -14,26 +14,26 @@
 void RendererBind(SDL_Renderer *Instance, void (*DrawingFunc)()); 
 void RendererInit();
 void RendererFree();
-void RendererRenderFrame();
 
-void RendererPushTransform();
-void RendererTranslate(PointStruct Point);
-void RendererScale(RealType Scale);
-void RendererRotate(RealType Ang);
-void RendererPopTransform();
-PointStruct RendererScreenToWorld(PointStruct ScreenPos);
-PointStruct RendererWorldToScreen(PointStruct WorldPos);
+void ProtonRenderFrame();
+void ProtonPushTransform();
+void ProtonTranslate(PointStruct Point);
+void ProtonScale(RealType Scale);
+void ProtonRotate(RealType Ang);
+void ProtonPopTransform();
+PointStruct ProtonScreenToWorld(PointStruct ScreenPos);
+PointStruct ProtonWorldToScreen(PointStruct WorldPos);
 
-void RendererSetFG(IntType r, IntType g, IntType b);
-void RendererSetBG(IntType r, IntType g, IntType b);
-void RendererSetFGA(IntType r, IntType g, IntType b, IntType a);
-void RendererSetBGA(IntType r, IntType g, IntType b, IntType a);
-void RendererDrawPoint(PointStruct Point);
-void RendererDrawLine(PointStruct P1, PointStruct P2);
-void RendererDrawCircle(PointStruct Centre, RealType Radius);
-void RendererFillCircle(PointStruct Centre, RealType Radius);
-void RendererDrawRectangle(PointStruct TopLeft, PointStruct BottomRight);
-void RendererFillRectangle(PointStruct TopLeft, PointStruct BottomRight);
-void RendererDrawText(const char *Text, PointStruct Pos);
+void ProtonSetFG(IntType r, IntType g, IntType b);
+void ProtonSetBG(IntType r, IntType g, IntType b);
+void ProtonSetFGA(IntType r, IntType g, IntType b, IntType a);
+void ProtonSetBGA(IntType r, IntType g, IntType b, IntType a);
+void ProtonDrawPoint(PointStruct Point);
+void ProtonDrawLine(PointStruct P1, PointStruct P2);
+void ProtonDrawCircle(PointStruct Centre, RealType Radius);
+void ProtonFillCircle(PointStruct Centre, RealType Radius);
+void ProtonDrawRect(PointStruct TopLeft, PointStruct BottomRight);
+void ProtonFillRect(PointStruct TopLeft, PointStruct BottomRight);
+void ProtonDrawText(const char *Text, PointStruct Pos);
 
 #endif /* RENDERER_H */

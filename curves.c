@@ -2,86 +2,64 @@
 #include "feel.h"
 #include "proton.h"
 #include "renderer.h"
+#define JUMP_TICK_COUNT (50.f)
+#define SQUISH_TICK_COUNT (30.f)
 
-#define FADE_IN_TIME (50.f)
-
-static PointStruct
-    Pos = WIN_CENTRE;
-static RealType
-    Zoom = 1.f;
-
+static CurveStruct1D
+    JumpCurve = {{0.f, 1.f, 1.f, 0.f}, 4},
+    RotationCurve = {{0.f, 1.477, 1.093, 1.f}, 4},
+    SquishCurve = {{0.f, 0.5f, 0.5f, 0.f}, 4};
+    
 void CurvesUpdate(IntType Delta)
 {
-    IntType i;
-    PointStruct p, w;
-    IntType Rad;
+    if (Keys['j'] && !LastKeys['j'] &&
+            TIMER(GP_0) == INACTIVE &&
+            TIMER(GP_1) == INACTIVE)
+        TIMER_START(GP_0);
 
-    Zoom *= exp(MouseWheel * Delta * 1e-2);
-    if (Buttons[M1]) {
-        Pos.x = Pos.x - (Mouse.x - LastMouse.x) / Zoom;
-        Pos.y = Pos.y - (Mouse.y - LastMouse.y) / Zoom;
+    if (TIMER(GP_0) == JUMP_TICK_COUNT) {
+        TIMER_STOP(GP_0);
+        TIMER_START(GP_1);
     }
 
-    RendererPushTransform();
-    RendererTranslate(POINT(-Pos.x, -Pos.y));
-    RendererScale(Zoom);
-    RendererTranslate(WIN_CENTRE);
-    
-    srand(0);
-    for (i = 0; i < 64; i++) {
-        
-        RendererSetFGA(rand() % 256, rand() % 256, rand() % 256, 0);
-        p = POINT(rand() % WIN_WIDTH, rand() % WIN_HEIGHT);
-        Rad = rand() % 30;
+    if (TIMER(GP_1) == SQUISH_TICK_COUNT)
+        TIMER_STOP(GP_1);
 
-        w = RendererWorldToScreen(p);
-        if (w.x < 0 || w.x >= WIN_WIDTH || w.y < 0 || w.y >= WIN_HEIGHT)
-            continue;
-        
-        AABB_SET(AABB[i], POINT(p.x - Rad, p.y - Rad),
-                          POINT(p.x + Rad, p.y + Rad));
-    }
-
-    RendererPopTransform();
 }
+
 
 void CurvesDraw()
 {
-    IntType i, Rad;
-    RealType t, s;
-    PointStruct p;
+    RealType y, Ang, Squish, SquishH;
 
-    t = ANIM_PARAM(GAME_STATE_TIMER(GAME_STATE_CURVES), FADE_IN_TIME);
-    t = Casteljau1D(t, EaseIn);
-    t = ANIM(t, 0, 255);
-    RendererSetBG(0, 0, t);
 
-    RendererPushTransform();
-    RendererTranslate(POINT(-Pos.x, -Pos.y));
-    RendererScale(Zoom);
-    RendererTranslate(WIN_CENTRE);
-    
-    srand(0);
-    for (i = 0; i < 64; i++) {
-        s = 1.f;
+    y = ANIM_PARAM(TIMER(GP_0), JUMP_TICK_COUNT);
+    Ang = ANIM_PARAM(TIMER(GP_0), JUMP_TICK_COUNT);
+    Squish = ANIM_PARAM(TIMER(GP_1), SQUISH_TICK_COUNT);
 
-        if (AABB_HIGHLIGHT_TIMER(i) != INACTIVE) {
-            s = ANIM_PARAM(AABB_HIGHLIGHT_TIMER(i), 10.f);
-            s = Casteljau1D(s, EaseOutIn);
-            s = ANIM(s, 1.f, 0.5f);
-        }
+    y = Casteljau1D(y, JumpCurve);
+    Ang = Casteljau1D(Ang, RotationCurve);
+    Squish = Casteljau1D(Squish, SquishCurve);
 
-        RendererSetFGA(rand() % 256 * s, rand() % 256 * s, rand() % 256 * s, t);
-        p = POINT(rand() % WIN_WIDTH, rand() % WIN_HEIGHT);
-        Rad = rand() % 30;
+    Ang = ANIM(Ang, 0, M_PI / 2.f);
+    y = ANIM(y, WIN_CENTRE.y, WIN_CENTRE.y - 100);
+    SquishH = ANIM(Squish, 0, 30);
+    Squish = ANIM(Squish, -40, 10);
 
-        RendererFillCircle(p, Rad);
-    }
+    /* Drawing code.                                                          */
+    ProtonSetFG(255, 255, 255);
+    ProtonPushTransform();
+    ProtonRotate(Ang);
+    ProtonTranslate(POINT(WIN_CENTRE.x, y));
 
-    RendererPopTransform();
+    ProtonDrawLine(POINT(-40 - SquishH, Squish),
+                   POINT(40 + SquishH, Squish));
+    ProtonDrawLine(POINT(40 + SquishH, Squish),
+                   POINT(40 + SquishH, 40));
+    ProtonDrawLine(POINT(40 + SquishH, 40),
+                   POINT(-40 - SquishH, 40));
+    ProtonDrawLine(POINT(-40 - SquishH, 40),
+                   POINT(-40 - SquishH, Squish));
 
-    RendererSetFG(0, 255, 0);
-    for (i = 0; i < 64; i++)
-        RendererDrawRectangle(AABB[i][0], AABB[i][1]);
-
+    ProtonPopTransform();
 }

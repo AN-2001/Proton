@@ -1,5 +1,5 @@
 cc := gcc
-flags := -I/usr/include/SDL2/ -I. -I./core -Ofast
+flags := -I/usr/include/SDL2/ -I. -I./core -g
 libs := -lm -lSDL2 -lSDL2_ttf 
 obj := core/proton.o core/renderer.o core/feel.o curves.o menu.o filePicker.o 
 proj := proton

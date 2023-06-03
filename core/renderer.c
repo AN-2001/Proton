@@ -103,7 +103,7 @@ void RendererFree()
     TTF_CloseFont(Font);
 }
 
-void RendererPushTransform()
+void ProtonPushTransform()
 {
     TransformTop = MIN(TransformTop + 1, TRANSFORM_STACK_SIZE - 1);
 
@@ -116,7 +116,7 @@ void RendererPushTransform()
            sizeof(InverseTransform));
 }
 
-void RendererTranslate(PointStruct Point)
+void ProtonTranslate(PointStruct Point)
 {
     MatType
         Trans;
@@ -129,7 +129,7 @@ void RendererTranslate(PointStruct Point)
     TransformInvert(Transform, InverseTransform);
 }
 
-void RendererScale(RealType Scale)
+void ProtonScale(RealType Scale)
 {
     MatType
         Trans;
@@ -142,7 +142,7 @@ void RendererScale(RealType Scale)
     TransformInvert(Transform, InverseTransform);
 }
 
-void RendererRotate(RealType Ang)
+void ProtonRotate(RealType Ang)
 {
     MatType
         Trans;
@@ -160,7 +160,7 @@ void RendererRotate(RealType Ang)
     TransformInvert(Transform, InverseTransform);
 }
 
-void RendererPopTransform()
+void ProtonPopTransform()
 {
     if (TransformTop == -1)
         return;
@@ -176,7 +176,7 @@ void RendererPopTransform()
     TransformTop = MAX(TransformTop - 1, -1);
 }
 
-void RendererRenderFrame() 
+void ProtonRenderFrame() 
 {
     SDL_SetRenderDrawColor(RendererInstance, Background.r * 255,
                                              Background.g * 255,
@@ -187,27 +187,27 @@ void RendererRenderFrame()
     SDL_RenderPresent(RendererInstance);
 }
 
-void RendererSetFG(IntType r, IntType g, IntType b)
+void ProtonSetFG(IntType r, IntType g, IntType b)
 {
     Foreground = COLOUR(r, g, b, 255);
 }
 
-void RendererSetBG(IntType r, IntType g, IntType b)
+void ProtonSetBG(IntType r, IntType g, IntType b)
 {
     Background = COLOUR(r, g, b, 255);
 }
 
-void RendererSetFGA(IntType r, IntType g, IntType b, IntType a)
+void ProtonSetFGA(IntType r, IntType g, IntType b, IntType a)
 {
     Foreground = COLOUR(r, g, b, a);
 }
 
-void RendererSetBGA(IntType r, IntType g, IntType b, IntType a)
+void ProtonSetBGA(IntType r, IntType g, IntType b, IntType a)
 {
     Background = COLOUR(r, g, b, a);
 }
 
-void RendererDrawPoint(PointStruct Point)
+void ProtonDrawPoint(PointStruct Point)
 {
     Point = TRANS_APPLY_POINT(Transform, Point);
     if (Point.x < 0 || Point.x >= WIN_WIDTH ||
@@ -221,7 +221,7 @@ void RendererDrawPoint(PointStruct Point)
     SDL_RenderDrawPoint(RendererInstance, Point.x, Point.y);
 }
 
-void RendererDrawLine(PointStruct P1, PointStruct P2)
+void ProtonDrawLine(PointStruct P1, PointStruct P2)
 {
     P1 = TRANS_APPLY_POINT(Transform, P1);
     P2 = TRANS_APPLY_POINT(Transform, P2);
@@ -239,7 +239,7 @@ void RendererDrawLine(PointStruct P1, PointStruct P2)
     SDL_RenderDrawLine(RendererInstance, P1.x, P1.y, P2.x, P2.y);
 }
 
-void RendererDrawCircle(PointStruct Centre, RealType Radius)
+void ProtonDrawCircle(PointStruct Centre, RealType Radius)
 {
     IntType i;
     RealType t1, t2, S;
@@ -266,7 +266,7 @@ void RendererDrawCircle(PointStruct Centre, RealType Radius)
     }
 }
 
-void RendererFillCircle(PointStruct Centre, RealType Radius)
+void ProtonFillCircle(PointStruct Centre, RealType Radius)
 {
     IntType i, y, Start, End;
     RealType R, S, v;
@@ -305,7 +305,7 @@ void RendererFillCircle(PointStruct Centre, RealType Radius)
     }
 }
 
-void RendererDrawRectangle(PointStruct TopLeft, PointStruct BottomRight)
+void ProtonDrawRect(PointStruct TopLeft, PointStruct BottomRight)
 {
     SDL_Rect Rect;
 
@@ -342,7 +342,7 @@ void RendererDrawRectangle(PointStruct TopLeft, PointStruct BottomRight)
 
 }
 
-void RendererFillRectangle(PointStruct TopLeft, PointStruct BottomRight)
+void ProtonFillRect(PointStruct TopLeft, PointStruct BottomRight)
 {
     SDL_Rect Rect;
 
@@ -359,17 +359,17 @@ void RendererFillRectangle(PointStruct TopLeft, PointStruct BottomRight)
     SDL_RenderFillRect(RendererInstance, &Rect);
 }
 
-PointStruct RendererScreenToWorld(PointStruct ScreenPos)
+PointStruct ProtonScreenToWorld(PointStruct ScreenPos)
 {
     return TRANS_APPLY_POINT(InverseTransform, ScreenPos);
 }
 
-PointStruct RendererWorldToScreen(PointStruct WorldPos)
+PointStruct ProtonWorldToScreen(PointStruct WorldPos)
 {
     return TRANS_APPLY_POINT(Transform, WorldPos);
 }
 
-void RendererDrawText(const char *Text, PointStruct Pos)
+void ProtonDrawText(const char *Text, PointStruct Pos)
 {
     SDL_Surface 
         *Surface = NULL;
