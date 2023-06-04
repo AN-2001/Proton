@@ -23,7 +23,7 @@ static void HandleMouseMotionEvent(SDL_Event Event);
 static void HandleMousePressedEvent(SDL_Event Event);
 static void HandleMouseWheelEvent(SDL_Event Event);
 static void HandleRender();
-static void DoStart(IntType DeltaTime);
+static void DoStart(RealType DeltaTime);
 static void DrawStart();
 
 PointStruct
@@ -45,8 +45,6 @@ BoolType
         {[ 0 ... TIMER_CONTROLLED_TOTAL - 1 ] = 0},
     LastTimerControllers[TIMER_CONTROLLED_TOTAL] =
         {[ 0 ... TIMER_CONTROLLED_TOTAL - 1 ] = 0},
-    AABBStatic[AABB_TOTAL] =
-        {[ 0 ... AABB_TOTAL - 1 ] = 0},
     CanRun = TRUE,
     Debug = FALSE;
 IntType
@@ -59,7 +57,7 @@ IntType
 /* Add new states here.                                                       */
 struct {
     char Name[BUFF_SIZE_SMALL];
-    void (*Update)(IntType Delta);
+    void (*Update)(RealType Delta);
     void (*Draw)();
 } StateInfo[GS_TOTAL] = {
     {"Start", DoStart, DrawStart}, /* The state below will run after start.   */
@@ -148,8 +146,6 @@ int main(int argc, const char *argv[])
             }
         }
         
-
-
         /* Update collision.                                                  */
         for (i = 0; i < AABB_TOTAL; i++) {
             if (AABB_IS_POINT_INSIDE(AABB[i], Mouse)) {
@@ -198,7 +194,7 @@ int main(int argc, const char *argv[])
         for (i = 0; i < GS_TOTAL; i++)
             if (StateInfo[i].Update &&
                     TimersStartPoints[GS_START + i] != INACTIVE)
-                StateInfo[i].Update(DeltaTime);
+                StateInfo[i].Update(((RealType)DeltaTime) * 1e-3);
 
         memcpy(&LastMouse, &Mouse, sizeof(Mouse));
         memcpy(&LastMouseWheel, &LastMouseWheel, sizeof(MouseWheel));
@@ -266,7 +262,7 @@ void HandleRender()
 
 }
 
-void DoStart(IntType DeltaTime)
+void DoStart(RealType DeltaTime)
 {
     (void)DeltaTime;
 

@@ -64,21 +64,23 @@ static inline void TransformMult(MatType Left, MatType Right, MatType Dest)
 
 static inline void TransformInvert(MatType Transform, MatType Inverse)
 {
+    MatType Ret;
     RealType
         Det = Transform[0][0] * Transform[1][1] -
               Transform[0][1] * Transform[1][0];
 
-    Inverse[0][0] =  Transform[0][0] / Det;
-    Inverse[1][0] =  Transform[0][1] / Det;
-    Inverse[0][1] =  Transform[1][0] / Det;
-    Inverse[1][1] =  Transform[1][1] / Det;
+    Ret[0][0] = Transform[0][0] / Det;
+    Ret[1][0] = Transform[0][1] / Det;
+    Ret[0][1] = Transform[1][0] / Det;
+    Ret[1][1] = Transform[1][1] / Det;
     
-    Inverse[0][2] = Inverse[0][0] * -Transform[0][2] +
-                    Inverse[0][1] * -Transform[1][2] ;
+    Ret[0][2] = Ret[0][0] * -Transform[0][2] +
+                Ret[0][1] * -Transform[1][2] ;
 
-    Inverse[1][2] = Inverse[1][0] * -Transform[0][2] +
-                    Inverse[1][1] * -Transform[1][2];
+    Ret[1][2] = Ret[1][0] * -Transform[0][2] +
+                Ret[1][1] * -Transform[1][2];
 
+    memcpy(Inverse, Ret, sizeof(MatType));
 }
 
 void RendererBind(SDL_Renderer *Instance, void (*Func)())

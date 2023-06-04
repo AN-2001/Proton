@@ -14,12 +14,18 @@
 #define WIN_HEIGHT (720)
 #define WIN_CENTRE POINT(WIN_WIDTH / 2.f, WIN_HEIGHT / 2.f)
 #define POINT_ZERO POINT(0, 0)
-#define POINT(a, b) (PointStruct){.x = (a), .y = (b)}
+#define POINT(a, b) \
+        (PointStruct){.x = (a), .y = (b)}
+#define POINT_ADD(P1, P2) \
+        POINT((P1).x + (P2).x, (P1).y + (P2).y)
+#define POINT_SCALE(P, S) \
+        POINT((P).x * S, (P).y * S)
 /* Assume user enters an integer between 0 and 255.                           */
-#define COLOUR(x, y, z, w) (ColourStruct){.r = ((x) / 255.f), \
-                                          .g = ((y) / 255.f), \
-                                          .b = ((z) / 255.f), \
-                                          .a = ((w) / 255.f)}
+#define COLOUR(x, y, z, w) \
+        (ColourStruct){.r = ((x) / 255.f), \
+                       .g = ((y) / 255.f), \
+                       .b = ((z) / 255.f), \
+                       .a = ((w) / 255.f)}
 #define PROJ "PROTON"
 #define SPLASH "WRITTEN BY ABED NA'ARAN, COMPILED ON " __DATE__
 #define BUFF_SIZE (1024)
@@ -31,8 +37,10 @@
 #define M1 (SDL_BUTTON_LEFT)
 #define M2 (SDL_BUTTON_RIGHT)
 #define M3 (SDL_BUTTON_MIDDLE)
-#define MIN(a, b) ((a) <= (b) ? (a) : (b))
-#define MAX(a, b) ((a) >= (b) ? (a) : (b))
+#define MIN(a, b) \
+    ((a) <= (b) ? (a) : (b))
+#define MAX(a, b) \
+    ((a) >= (b) ? (a) : (b))
 // #define AABB_SET(AABB, P1, P2)                                 \
 //     do {                                                       \
 //     PointStruct                                                \
@@ -56,7 +64,7 @@
 #define AABB_IS_POINT_INSIDE(AABB, P)                          \
           ((P).x >= (AABB)[0].x && (P).x <= (AABB)[1].x && \
            (P).y >= (AABB)[0].y && (P).y <= (AABB)[1].y)
-#define AABB_INTERSECTS(B1, B2) \
+#define AABB_COLLIDES(B1, B2) \
           (AABB[B1][0].x < AABB[B2][1].x && \
            AABB[B1][0].y < AABB[B2][1].y && \
            AABB[B2][0].x < AABB[B1][1].x && \
@@ -76,7 +84,7 @@ typedef struct {
 } ColourStruct;
 /* Timer things.                                                              */
 /* General purpose timers.                                                    */
-#define GP_TIMER_TOTAL (64)
+#define GP_TIMER_TOTAL (8)
 #define GS_TOTAL (GS_END - GS_START + 1)
 /* ORDER MATTERS, IT DETERMINES DRAWING/LOGIC ORDER.                          */
 typedef enum {
@@ -97,6 +105,9 @@ typedef enum {
     GP_2,
     GP_3,
     GP_4,
+    GP_5,
+    GP_6,
+    GP_7,
     GP_END = GP_TIMER_TOTAL,
     GS_START,
     GS_CURVES,
@@ -135,7 +146,6 @@ extern IntType LastMouseWheel;
 extern IntType TimersStartPoints[TIMER_TOTAL];
 extern IntType Tick;
 extern BoolType TimerControllers[TIMER_CONTROLLED_TOTAL];
-extern BoolType AABBStatic[AABB_TOTAL];
 extern BoolType Keys[KEYS_TOTAL];
 extern BoolType Buttons[MOUSE_KEYS_TOTAL];
 extern BoolType LastKeys[KEYS_TOTAL];
@@ -179,14 +189,15 @@ static inline void ProtonLogError(char *Format, ...)
     fflush(stderr);
 }
 
-static inline void AABBResolveCollision(IntType B1, IntType B2)
+static inline void AABBResolveCollision(IntType B1, BoolType B1Static,
+                                        IntType B2, BoolType B2Static)
 {
     RealType x12, x21, y12, y21, Min, a, b;
 
-    if (!AABB_INTERSECTS(B1, B2))
+    if (!AABB_COLLIDES(B1, B2))
         return;
 
-    if (AABBStatic[B1] && AABBStatic[B2])
+    if (B1Static && B2Static)
         return;
 
     x12 = AABB[B2][1].x - AABB[B1][0].x;
@@ -195,10 +206,10 @@ static inline void AABBResolveCollision(IntType B1, IntType B2)
     y21 = AABB[B1][1].y - AABB[B2][0].y;
     Min = MIN(x12, MIN(x21, MIN(y12, y21)));
 
-    if (AABBStatic[B1]) {
+    if (B1Static) {
         a = Min == x12 || Min == y12 ? 0 : Min;
         b = Min == x12 || Min == y12 ? Min : 0;
-    } else if (AABBStatic[B2]) {
+    } else if (B2Static) {
         a = Min == x12 || Min == y12 ? Min : 0;
         b = Min == x12 || Min == y12 ? 0 : Min;
     } else

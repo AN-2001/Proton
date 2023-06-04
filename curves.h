@@ -2,7 +2,7 @@
 #define CURVES_H
 #include "proton.h"
 
-void CurvesUpdate(IntType Delta);
+void CurvesUpdate(RealType Delta);
 void CurvesDraw();
 
 #endif /* CURVES_H */
