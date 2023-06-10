@@ -1,0 +1,92 @@
+[
+    {
+        "arguments": [
+            "gcc",
+            "-c",
+            "-I/usr/include/SDL2/",
+            "-I.",
+            "-I./core",
+            "-Ofast",
+            "-o",
+            "curves.o",
+            "curves.c"
+        ],
+        "directory": "/home/amber/technion_stuff/semester_7/CAGD/Proton",
+        "file": "curves.c"
+    },
+    {
+        "arguments": [
+            "gcc",
+            "-c",
+            "-I/usr/include/SDL2/",
+            "-I.",
+            "-I./core",
+            "-Ofast",
+            "-o",
+            "core/renderer.o",
+            "core/renderer.c"
+        ],
+        "directory": "/home/amber/technion_stuff/semester_7/CAGD/Proton",
+        "file": "core/renderer.c"
+    },
+    {
+        "arguments": [
+            "gcc",
+            "-c",
+            "-I/usr/include/SDL2/",
+            "-I.",
+            "-I./core",
+            "-Ofast",
+            "-o",
+            "filePicker.o",
+            "filePicker.c"
+        ],
+        "directory": "/home/amber/technion_stuff/semester_7/CAGD/Proton",
+        "file": "filePicker.c"
+    },
+    {
+        "arguments": [
+            "gcc",
+            "-c",
+            "-I/usr/include/SDL2/",
+            "-I.",
+            "-I./core",
+            "-Ofast",
+            "-o",
+            "core/proton.o",
+            "core/proton.c"
+        ],
+        "directory": "/home/amber/technion_stuff/semester_7/CAGD/Proton",
+        "file": "core/proton.c"
+    },
+    {
+        "arguments": [
+            "gcc",
+            "-c",
+            "-I/usr/include/SDL2/",
+            "-I.",
+            "-I./core",
+            "-Ofast",
+            "-o",
+            "core/feel.o",
+            "core/feel.c"
+        ],
+        "directory": "/home/amber/technion_stuff/semester_7/CAGD/Proton",
+        "file": "core/feel.c"
+    },
+    {
+        "arguments": [
+            "gcc",
+            "-c",
+            "-I/usr/include/SDL2/",
+            "-I.",
+            "-I./core",
+            "-Ofast",
+            "-o",
+            "menu.o",
+            "menu.c"
+        ],
+        "directory": "/home/amber/technion_stuff/semester_7/CAGD/Proton",
+        "file": "menu.c"
+    }
+]
