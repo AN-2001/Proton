@@ -84,7 +84,7 @@ typedef enum {
     AABB_MENU_ITEM_5,
     AABB_MENU_ITEM_6,
     AABB_MENU_ITEM_7,
-    AABB_MENU_TOTAL = 32,
+    AABB_MENU_TOTAL = 64,
     AABB_TOTAL = 512,
 } AABBEnum;
 typedef enum {

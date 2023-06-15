@@ -1,5 +1,6 @@
 #include "curves.h"
 #include "feel.h"
+#include "menu.h"
 #include "proton.h"
 #include "renderer.h"
 #include "palette.h"
@@ -27,6 +28,8 @@ static IntType XOffset, YOffset,
     AABBStarts[CURVES_TOTAL];
 static RealType
     Zoom = 1.f;
+static BoolType
+    CtrlVisable = TRUE;
 
 static inline void AddControlPoint(PointStruct Pos);
 static inline void SetPickedCurve(IntType ID);
@@ -37,7 +40,6 @@ static inline void DrawCtrlPoints(IntType ID);
 static inline void DrawGrid(RealType t);
 static inline void RefreshAABB();
 static inline void Refresh();
-static inline void AddEmptyCurve();
 static inline void AddCurveFromFile();
 static inline void MakeInputReport();
 
@@ -48,8 +50,13 @@ void CurvesUpdate(RealType Delta)
     PointStruct
         SnappedPosition = Mouse;
 
-    if (TIMER(GS_CURVES) == 0 || (Buttons[M2] && !LastButtons[M2]))
-        AddEmptyCurve();
+    if (Buttons[M2] && !LastButtons[M2]) {
+        TIMER_RESET(GS_MENU);
+        TIMER_STOP(GS_FILE_PICKER);
+    }
+
+    if (TIMER(GS_MENU) != INACTIVE || TIMER(GS_FILE_PICKER) != INACTIVE)
+        return;
 
     if (TIMER(GS_CURVES) < FADE_IN_T)
         return;
@@ -133,11 +140,11 @@ void CurvesDraw()
     ProtonScale(Zoom);
     ProtonTranslate(WIN_CENTRE);
 
-    for (i = 0; i < NumCurves; i++)
+    for (i = 0; CtrlVisable && i < NumCurves; i++)
         DrawCtrlPolygon(i);
     for (i = 0; i < NumCurves; i++)
         DrawEvalCurve(i);
-    for (i = 0; i < NumCurves; i++)
+    for (i = 0; CtrlVisable && i < NumCurves; i++)
         DrawCtrlPoints(i);
 
     if (PickedCtrlPoint != INACTIVE) {
@@ -187,6 +194,9 @@ void DrawEvalCurve(IntType ID)
 {
     IntType i; 
 
+    if (!Curves[ID].Order)
+        return;
+
     ProtonSetFG(CURVE_COLOUR);
     for (i = 0; i < TESSELATION_RES - 1; i++)
         ProtonDrawLine(EvalCurves[ID][i],
@@ -196,9 +206,10 @@ void DrawEvalCurve(IntType ID)
 void DrawCtrlPolygon(IntType ID)
 {
     IntType i;
-
     ColourStruct c;
 
+    if (!Curves[ID].Order)
+        return;
     c = CONTROL_POLY_COLOUR;
     if (ID != PickedCurve) {
         c.a = 128;
@@ -217,6 +228,8 @@ void DrawCtrlPoints(IntType ID)
     RealType t1, t2, t;
     ColourStruct c1, c2, c;
 
+    if (!Curves[ID].Order)
+        return;
     c1 = CONTROL_POINT_COLOUR;
     c2 = PICKED_CONTROL_POINT_COLOUR;
 
@@ -272,13 +285,19 @@ void SetPickedCurve(IntType ID)
     Refresh();
 }
 
-void AddEmptyCurve()
+void CurvesAddEmptyCurve()
 {
     for (PickedCurve = 0; PickedCurve < NumCurves; PickedCurve++)
         if (!Curves[PickedCurve].Order)
             return;
 
     NumCurves++;
+    CtrlVisable = TRUE;
+}
+
+void CurvesToggleVisibility()
+{
+    CtrlVisable = !CtrlVisable;
 }
 
 void MakeInputReport()
@@ -287,8 +306,8 @@ void MakeInputReport()
 
     ClickReport = (struct InputReportStruct){INACTIVE_INPUT, INACTIVE_INPUT};
 
-    /* Report the very first control point that was clicked.                  */
-    for (i = 0; i < NumCurves; i++) {
+    /* Loop in reverse so that the latest curve is picked first.              */
+    for (i = NumCurves - 1; i >= 0; i--) {
         for (j = 0; j < Curves[i].Order; j++) {
             if (TIMER(AABB_CLICK + AABBStarts[i] + j) != INACTIVE) {
                 ClickReport.Curve = i;

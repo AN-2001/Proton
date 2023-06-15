@@ -62,6 +62,8 @@ struct {
 } StateInfo[GS_TOTAL] = {
     {"Start", DoStart, DrawStart}, /* The state below will run after start.   */
     {"Curves", CurvesUpdate, CurvesDraw},
+    {"File picker", FilePickerUpdate, FilePickerDraw},
+    {"Menu", MenuUpdate, MenuDraw}
 };
 
 int main(int argc, const char *argv[])

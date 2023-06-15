@@ -5,6 +5,8 @@
 #define CURVES_TOTAL (64)
 
 void CurvesUpdate(RealType Delta);
+void CurvesAddEmptyCurve();
+void CurvesToggleVisibility();
 void CurvesDraw();
 
 #endif /* CURVES_H */

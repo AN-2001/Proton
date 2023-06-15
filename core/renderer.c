@@ -2,7 +2,6 @@
 #include "SDL2/SDL_ttf.h"
 #include <SDL2/SDL_error.h>
 #include <SDL2/SDL_render.h>
-#include <math.h>
 #include <memory.h>
 #include <stdint.h>
 #include <string.h>
