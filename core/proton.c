@@ -9,6 +9,8 @@
 #include "curves.h"
 #include "menu.h"
 #include "filePicker.h"
+#include "inputPrompt.h"
+#include "knotEditor.h"
 
 #define EVENT_HEADER(i) (void)Event;
 #define MSEC_PER_TICK ((1.0 / TICKS_PER_SEC) * 1e3)
@@ -63,7 +65,9 @@ struct {
     {"Start", DoStart, DrawStart}, /* The state below will run after start.   */
     {"Curves", CurvesUpdate, CurvesDraw},
     {"File picker", FilePickerUpdate, FilePickerDraw},
-    {"Menu", MenuUpdate, MenuDraw}
+    {"Menu", MenuUpdate, MenuDraw},
+    {"Input prompt", InputPromptUpdate, InputPromptDraw},
+    {"Knot editor",  knotEditorUpdate, knotEditorDraw}
 };
 
 int main(int argc, const char *argv[])
@@ -275,10 +279,10 @@ void DrawStart()
 
 
    t = ANIM_PARAM(TIMER(GS_START), INTRO_LEN);
-   t = Casteljau1D(t, EaseIn);
+   t = BezierEval1D(t, EaseIn);
    t = ANIM(t, 255, 0);
 
    ProtonSetBG(COLOUR(t, t, t, 255));
    ProtonSetFG(COLOUR(0, 0, 0, t));
-   ProtonDrawText("PROTON", POINT(WIN_WIDTH / 2.f - 60, WIN_HEIGHT / 2.f));
+   ProtonDrawText("PROTON", POINT(WIN_WIDTH / 2.f - 60, WIN_HEIGHT / 2.f - 20));
 }

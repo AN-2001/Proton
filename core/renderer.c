@@ -8,7 +8,7 @@
 #include "renderer.h"
 #include "proton.h"
 
-#define CIRCLE_RES (32)
+#define CIRCLE_RES (1000)
 #define TRANSFORM_STACK_SIZE (32)
 #define TRANS_APPLY_POINT(T, P) TransformApply(T, P, TRUE)
 #define TRANS_APPLY_VEC(T, V) TransformApply(T, V, FALSE)
@@ -93,9 +93,13 @@ void RendererBind(SDL_Renderer *Instance, void (*Func)())
 void RendererInit()
 {
     TTF_Init();
-    Font = TTF_OpenFont("/usr/share/fonts/truetype/freefont/FreeSans.ttf", 20);
+    Font = TTF_OpenFont("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20);
+    if (!Font) {
+        ProtonLogError("%s", TTF_GetError());
+    }
+    
     //TTF_SetFontOutline(Font, 1);
-    TTF_SetFontStyle(Font, TTF_STYLE_BOLD);
+//    TTF_SetFontStyle(Font, TTF_STYLE_BOLD);
     SDL_SetRenderDrawBlendMode(RendererInstance, SDL_BLENDMODE_BLEND);
     memcpy(Transform, Identity, sizeof(Transform));
     memcpy(InverseTransform, Identity, sizeof(InverseTransform));

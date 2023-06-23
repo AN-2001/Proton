@@ -3,8 +3,8 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <math.h>
-#define EPS (1e-4)
-#define TESSELATION_RES (100)
+#define EPS (1e-5)
+#define TESSELATION_RES (1000)
 #define TRUE (1)
 #define FALSE (0)
 #define RESET (2)
@@ -27,7 +27,7 @@
                        .b = ((z) / 255.f), \
                        .a = ((w) / 255.f)}
 #define PROJ "PROTON"
-#define SPLASH "WRITTEN BY ABED NA'ARAN, COMPILED ON " __DATE__
+#define SPLASH "WRITTEN BY ABED.N, COMPILED ON " __DATE__
 #define BUFF_SIZE (1024)
 #define BUFF_SIZE_SMALL (32)
 #define TICKS_PER_SEC (60)
@@ -101,6 +101,8 @@ typedef enum {
     GS_CURVES,
     GS_FILE_PICKER,
     GS_MENU,
+    GS_INPUT_PROMPT,
+    GS_KNOT_EDITOR,
     GS_END,
     TIMER_CONTROLLED_TOTAL, /* All the controllable timers.                   */
     AABB_HOVER, /* All the timers managed by proton.                          */

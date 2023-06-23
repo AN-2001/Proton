@@ -1,4 +1,5 @@
 #include "curves.h"
+#include "inputPrompt.h"
 #include "proton.h"
 #include "renderer.h"
 #include "dirent.h"
@@ -10,7 +11,7 @@
 #include "feel.h"
 #include "palette.h"
 
-#define FILE_PICKER_WIDTH (300)
+#define FILE_PICKER_WIDTH (320)
 #define FILE_PICKER_HEIGHT (350)
 #define FILE_PICKER_ITEMS_OFFSET_X (20)
 #define FILE_PICKER_ITEMS_OFFSET_Y (20)
@@ -26,20 +27,26 @@ static struct FileInfo{
     int Type;
 } *LoadedFiles = NULL;
 static IntType
+    FadeStart = 0,
     LoadedFilesSize = 0;
 static PointStruct
     Root = POINT_ZERO;
 static IntType
     Scroll = 0;
+static BoolType
+    WaitingForInput = FALSE;
 
 static void LoadFiles();
-static void ChangeCurrentPath(const char *Picked);
+static void HandleClick(IntType Picked);
 static size_t CountFiles(DIR *Dir);
 static int Compare(const void *p1, const void *p2);
 
 void FilePickerUpdate(RealType Delta)
 {
     IntType i, k;
+
+    if (TIMER(GS_INPUT_PROMPT) != INACTIVE)
+        return;
 
     if (Buttons[M1] && !LastButtons[M1] &&
             TIMER(AABB_HOVER + AABB_MENU_ITEM_4) == INACTIVE) {
@@ -50,7 +57,21 @@ void FilePickerUpdate(RealType Delta)
         CurrentDir[0] = '.';
         CurrentDir[1] = '\0';
         Scroll = 0;
+        FadeStart = 0;
         LoadFiles();
+    }
+
+    if (WaitingForInput) {
+        sprintf(TextInput, "%s.dat", TextInput);
+        printf("Saving picked curve into %s\n", TextInput);
+        fclose(fopen(TextInput, "w"));
+        WaitingForInput = FALSE;
+    }
+
+
+    if (Keys['s'] && PickedCurve) {
+        WaitingForInput = TRUE;
+        TIMER_START(GS_INPUT_PROMPT);
     }
 
     Scroll -= (MouseWheel < 0 ? -1 : 1) * (MouseWheel != 0);
@@ -59,9 +80,8 @@ void FilePickerUpdate(RealType Delta)
     if (Buttons[M1] && !LastButtons[M1]) {
         for (i = 0; i < LoadedFilesSize - Scroll; i++) {
             k = AABB_MENU_ITEM_4 + i + 1; 
-            if (TIMER(AABB_CLICK + k) != INACTIVE &&
-                    LoadedFiles[i + Scroll].Type)
-                ChangeCurrentPath(LoadedFiles[i + Scroll].Name);
+            if (TIMER(AABB_CLICK + k) != INACTIVE)
+                HandleClick(Scroll + i);
         }
     }
 
@@ -90,34 +110,25 @@ void FilePickerDraw()
     PointStruct p, TopLeft, BottomRight, BorderTop, BorderBottom;
     ColourStruct TextColour, c;
 
-    t1 = ANIM_PARAM(TIMER(GS_FILE_PICKER), UI_FADE_TIME);
-    t1 = Casteljau1D(t1, EaseOut);
-
     TopLeft = AABB[AABB_MENU_ITEM_4][0];
     BottomRight = AABB[AABB_MENU_ITEM_4][1];
-    p = POINT(BottomRight.x, ANIM(t1, TopLeft.y + 10, BottomRight.y));
     BorderTop = POINT_ADD(POINT(10, 10), TopLeft);
-    BorderBottom = POINT_ADD(POINT(-10, -10), p);
+    BorderBottom = POINT_ADD(POINT(-10, -10), BottomRight);
 
     ProtonSetFG(UI_BACKGROUND_COLOUR);
-    ProtonFillRect(TopLeft, p);
-
+    ProtonFillRect(TopLeft, BottomRight);
     ProtonSetFG(UI_BORDER_COLOUR);
     ProtonDrawRect(BorderTop, BorderBottom);
 
-    if (TIMER(GS_FILE_PICKER) < UI_FADE_TIME)
-        return;
-
-    t1 = ANIM_PARAM(TIMER(GS_FILE_PICKER) - UI_FADE_TIME, UI_TEXT_FADE_TIME);
-    t1 = Casteljau1D(t1, EaseIn);
-
+    t1 = ANIM_PARAM(TIMER(GS_FILE_PICKER) - FadeStart, UI_TEXT_FADE_TIME);
+    t1 = BezierEval1D(t1, EaseIn);
     for (i = 0; i < FILE_PICKER_ITEMS_TOTAL; i++) {
         k = AABB_MENU_ITEM_4 + i + 1;
         if (Scroll + i >= LoadedFilesSize)
             continue;
 
         t2 = ANIM_PARAM(TIMER(AABB_HOVER + k), UI_TEXT_FADE_TIME);
-        t2 = Casteljau1D(t2, EaseOut);
+        t2 = BezierEval1D(t2, EaseOut);
         
         c = LoadedFiles[i + Scroll].Type ? TEXT_DIR_NHOVERED_COLOUR :
                                            TEXT_FILE_NHOVERED_COLOUR;
@@ -195,13 +206,20 @@ void LoadFiles()
     closedir(Dir);
 }
 
-void ChangeCurrentPath(const char *Picked)
+void HandleClick(IntType Picked)
 {
     char Tmp[PATH_MAX * 2 + 1];
 
-    sprintf(Tmp, "%s/%s", CurrentDir, Picked);
+    sprintf(Tmp, "%s/%s", CurrentDir, LoadedFiles[Picked].Name);
     (void)realpath(Tmp, CurrentDir);
-    LoadFiles();
+
+    if (LoadedFiles[Picked].Type) {
+        FadeStart = TIMER(GS_FILE_PICKER);
+        LoadFiles();
+    } else {
+        CurvesAddFromPath(CurrentDir); 
+        TIMER_STOP(GS_FILE_PICKER);
+    }
 }
 
 void FilePickerSetRoot(PointStruct Point)
