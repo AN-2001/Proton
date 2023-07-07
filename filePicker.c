@@ -43,6 +43,7 @@ static int Compare(const void *p1, const void *p2);
 
 void FilePickerUpdate(RealType Delta)
 {
+    char Filename[BUFF_SIZE];
     IntType i, k;
 
     if (TIMER(GS_INPUT_PROMPT) != INACTIVE)
@@ -62,14 +63,13 @@ void FilePickerUpdate(RealType Delta)
     }
 
     if (WaitingForInput) {
-        sprintf(TextInput, "%s.dat", TextInput);
-        printf("Saving picked curve into %s\n", TextInput);
-        fclose(fopen(TextInput, "w"));
+        sprintf(Filename, "%s/%s.dat", CurrentDir, TextInput);
+        CurvesDumpScene(Filename);
         WaitingForInput = FALSE;
     }
 
 
-    if (Keys['s'] && PickedCurve) {
+    if (Keys['s'] && !LastKeys['s']) {
         WaitingForInput = TRUE;
         TIMER_START(GS_INPUT_PROMPT);
     }

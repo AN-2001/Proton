@@ -15,7 +15,9 @@
 #define WIN_CENTRE POINT(WIN_WIDTH / 2.f, WIN_HEIGHT / 2.f)
 #define POINT_ZERO POINT(0, 0)
 #define POINT(a, b) \
-        (PointStruct){.x = (a), .y = (b)}
+        (PointStruct){.x = (a), .y = (b), .w = (1.f)}
+#define POINT_W(a, b, c) \
+        (PointStruct){.x = (a), .y = (b), .w = (c)}
 #define POINT_ADD(P1, P2) \
         POINT((P1).x + (P2).x, (P1).y + (P2).y)
 #define POINT_SCALE(P, S) \
@@ -64,7 +66,7 @@ typedef int IntType;
 typedef unsigned char BoolType;
 typedef RealType MatType[2][3];
 typedef struct {
-    RealType x, y; 
+    RealType x, y, w;
 } PointStruct;
 typedef PointStruct AABBType[2];
 typedef struct {
@@ -85,7 +87,7 @@ typedef enum {
     AABB_MENU_ITEM_6,
     AABB_MENU_ITEM_7,
     AABB_MENU_TOTAL = 64,
-    AABB_TOTAL = 512,
+    AABB_TOTAL = 2048,
 } AABBEnum;
 typedef enum {
     GP_0 = 0,

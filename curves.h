@@ -17,6 +17,7 @@ void CurvesUpdate(RealType Delta);
 void CurvesAddEmptyBezier();
 void CurvesAddEmptyBspline();
 void CurvesAddFromPath(const char *Path);
+void CurvesDumpScene(const char *Path);
 void CurvesToggleTangent();
 void CurvesToggleNormal();
 void CurvesToggleOsculatingCircle();

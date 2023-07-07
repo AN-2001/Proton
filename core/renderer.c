@@ -38,13 +38,14 @@ static inline PointStruct TransformApply(MatType Transform,
                                   PointStruct Point,
                                   BoolType IsPoint)
 {
-    return POINT(Point.x * Transform[0][0] +
+    return POINT_W(Point.x * Transform[0][0] +
                  Point.y * Transform[0][1] +
                  Transform[0][2] * IsPoint,
 
                  Point.x * Transform[1][0] +
                  Point.y * Transform[1][1] +
-                 Transform[1][2] * IsPoint);
+                 Transform[1][2] * IsPoint,
+                 Point.w);
 }
 
 static inline void TransformMult(MatType Left, MatType Right, MatType Dest)

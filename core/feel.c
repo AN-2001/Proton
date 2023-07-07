@@ -2,7 +2,7 @@
 #include "proton.h"
 #include <string.h>
 
-#define DERIV_H (1e-1)
+#define DERIV_H (1e-2)
 
 Curve1DStruct
     EaseIn = {{0.f, 0.f, 0.f, 1.f}, 4},
@@ -37,6 +37,10 @@ PointStruct BsplineEval(RealType t, CurveStruct BSpline)
         j < CURVE_MAX_ORDER - 1 && !(t >= BSpline.KnotVector[j] && t < BSpline.KnotVector[j + 1]);
         j++);
 
+    for (i = 0; i < BSpline.NumPoints; i++) {
+        BSpline.CtrlPnts[i].x = BSpline.CtrlPnts[i].x * BSpline.CtrlPnts[i].w;
+        BSpline.CtrlPnts[i].y = BSpline.CtrlPnts[i].y * BSpline.CtrlPnts[i].w;
+    }
     memcpy(New, BSpline.CtrlPnts, sizeof(*New) * BSpline.NumPoints);
     for (p = 1; p <= BSpline.Degree; p++) {
         memcpy(Old, New, sizeof(New));
@@ -46,9 +50,12 @@ PointStruct BsplineEval(RealType t, CurveStruct BSpline)
 
             New[i].x = (1.f - k) * Old[MAX(i - 1, 0)].x + k * Old[i].x;
             New[i].y = (1.f - k) * Old[MAX(i - 1, 0)].y + k * Old[i].y;
+            New[i].w = (1.f - k) * Old[MAX(i - 1, 0)].w + k * Old[i].w;
         }
     }
 
+    New[j].x = New[j].x / New[j].w;
+    New[j].y = New[j].y / New[j].w;
     return New[j];
 }
 
@@ -89,13 +96,22 @@ PointStruct BezierEval(RealType t, CurveStruct Curve)
     if (!Curve.NumPoints)
         return POINT_ZERO;
 
+    for (i = 0; i < Curve.NumPoints; i++) {
+        Curve.CtrlPnts[i].x = Curve.CtrlPnts[i].x * Curve.CtrlPnts[i].w;
+        Curve.CtrlPnts[i].y = Curve.CtrlPnts[i].y * Curve.CtrlPnts[i].w;
+    }
+
     memcpy(Res, Curve.CtrlPnts, sizeof(*Res) * Curve.NumPoints);
     for (j = 0; j < Curve.NumPoints - 1; j++) {
         for (i = 0; i < Curve.NumPoints - 1; i++) {
-            Res[i].x = (RealType)Res[i].x * (1.f - t) + (RealType)Res[i + 1].x * t;
-            Res[i].y = (RealType)Res[i].y * (1.f - t) + (RealType)Res[i + 1].y * t;
+            Res[i].x = Res[i].x * (1.f - t) + Res[i + 1].x * t;
+            Res[i].y = Res[i].y * (1.f - t) + Res[i + 1].y * t;
+            Res[i].w = Res[i].w * (1.f - t) + Res[i + 1].w * t;
         }
     }
+
+    Res[0].x = Res[0].x / Res[0].w;
+    Res[0].y = Res[0].y / Res[0].w;
     return Res[0];
 }
 

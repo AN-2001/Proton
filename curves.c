@@ -33,7 +33,8 @@ static IntType XOffset, YOffset,
     ClosestPoint = INACTIVE,
     PickedCurveIndx = INACTIVE,
     PickedCtrlPoint = INACTIVE,
-    AABBStarts[CURVES_TOTAL];
+    AABBStarts[CURVES_TOTAL],
+    NewlyAdded[CURVES_TOTAL];
 static RealType
     Zoom = 1.f,
     EditZoom = 10.f,
@@ -73,13 +74,12 @@ static inline void AddEmptyCurve();
 static inline void FindClosestPoint();
 static inline void CalcualteFrenetFrame();
 static inline void DoConnection(IntType ID1, IntType ID2);
-static inline void DoConnectionBezierDiffC0(CurveStruct *C1, CurveStruct *C2);
-static inline void DoConnectionBezierC0(CurveStruct *C1, CurveStruct *C2);
-static inline void DoConnectionBezierC1(CurveStruct *C1, CurveStruct *C2);
-static inline void DoConnectionBezierG1(CurveStruct *C1, CurveStruct *C2);
-static inline void DoConnectionBSplineC0(CurveStruct *C1, CurveStruct *C2);
-static inline void DoConnectionBSplineC1(CurveStruct *C1, CurveStruct *C2);
-static inline void DoConnectionBSplineG1(CurveStruct *C1, CurveStruct *C2);
+static inline void DoConnectionDiffC0(CurveStruct *C1, CurveStruct *C2);
+static inline void DoConnectionC0(CurveStruct *C1, CurveStruct *C2);
+static inline void DoConnectionC1(CurveStruct *C1, CurveStruct *C2);
+static inline void DoConnectionG1(CurveStruct *C1, CurveStruct *C2);
+static inline void DumpCurveToFile(CurveStruct C, FILE *File);
+static inline void ConvertBezierToBSpline(CurveStruct *C);
 
 void CurvesUpdate(RealType Delta)
 {
@@ -136,8 +136,10 @@ void CurvesUpdate(RealType Delta)
         return;
     }
 
-    Zoom *= exp(MouseWheel * Delta * 1e1);
-    Zoom = MAX(MIN(Zoom, 10.f), 1 / 2.f);
+    if (PickedCtrlPoint == INACTIVE) {
+        Zoom *= exp(MouseWheel * Delta * 1e1);
+        Zoom = MAX(MIN(Zoom, 10.f), 1 / 2.f);
+    }
 
 
     if (IsConnecting && ClickReport.CtrlPoint != INACTIVE_INPUT)
@@ -156,8 +158,14 @@ void CurvesUpdate(RealType Delta)
 
     if (!IsConnecting) {
         if (PickedCtrlPoint != INACTIVE) {
-            Curves[PickedCurveIndx].CtrlPnts[PickedCtrlPoint] =
+            SnappedPosition.w = PickedCurve -> CtrlPnts[PickedCtrlPoint].w;
+
+            PickedCurve -> CtrlPnts[PickedCtrlPoint] =
                 ProtonScreenToWorld(SnappedPosition);
+            
+            PickedCurve -> CtrlPnts[PickedCtrlPoint].w *=
+                        exp(MouseWheel * Delta * 1e1);
+
             PickedCurve -> NeedsRefresh = TRUE;
             if (Keys['d'] && !LastKeys['d'])
                 DeletePickedPoint();
@@ -198,8 +206,10 @@ void CurvesDraw()
     ProtonSetBG(ColourMult(BACKGROUND_COLOUR, t));
     DrawGrid(t);
 
-    if (IsLoading)
+    if (IsLoading) {
         DrawGhost();
+        return;
+    }
 
     /* Trnslate Pan to the original, scale everything there then translate    */
     /* the origin to the middle of the screen.                                */
@@ -321,8 +331,7 @@ void RefreshAABB()
     for (i = 0; i < NumCurves; i++) {
         AABBStarts[i] = k;
         for (j = 0; j < Curves[i].NumPoints; j++) {
-            p = Curves[i].CtrlPnts[j];
-            AABB_SET(k,
+            p = Curves[i].CtrlPnts[j]; AABB_SET(k,
                     POINT(p.x - CTRL_POINTS_RADIUS * 2, p.y - CTRL_POINTS_RADIUS * 2),
                     POINT(p.x + CTRL_POINTS_RADIUS * 2, p.y + CTRL_POINTS_RADIUS * 2));
             k++;
@@ -396,6 +405,11 @@ void DrawCtrlPoints(IntType ID)
 
         ProtonSetFG(c);
         ProtonFillCircle(Curves[ID].CtrlPnts[i], CTRL_POINTS_RADIUS);
+        if (TIMER(AABB_HOVER + AABBStarts[ID] + i) != INACTIVE) {
+            ProtonSetFG(WEIGHT_RAD_COLOUR);
+            ProtonDrawCircle(Curves[ID].CtrlPnts[i],
+                             CTRL_POINTS_RADIUS * Curves[ID].CtrlPnts[i].w);
+        }
     }
 }
 
@@ -460,53 +474,125 @@ void CurvesAddEmptyBspline()
     PickedCurve -> Type = CURVE_TYPE_BSPLINE;
 }
 
+static BoolType ShouldLineBeIgnored(const char *Buff)
+{
+    for (;*Buff == ' ' || *Buff == '\t'; Buff++);
+    if (*Buff == '\n' || !*Buff || *Buff == '#')
+        return TRUE;
+
+    return FALSE;
+}
+
+static BoolType ReadNextInput(char *Buff, FILE *File)
+{
+    do {
+        if (!fgets(Buff, BUFF_SIZE, File))
+            return FALSE;
+    } while (ShouldLineBeIgnored(Buff));
+    return TRUE;
+}
+
 void CurvesAddFromPath(const char *Path)
 {
-    char Buff[BUFF_SIZE];
+    char
+        Buff[BUFF_SIZE];
     FILE 
         *DataFile = fopen(Path, "r");
-    IntType NumPoints, i;
-    RealType x, y, w;
+    IntType Order, i, n, NumKnots, t, j, c, NumPoints,
+        Knots = 0;
+    RealType x, y, w, k;
 
-    while (fgets(Buff, BUFF_SIZE, DataFile)) {
-        if (Buff[0] == '#' || !Buff[0])
-            continue;
+    for (i = 0; i < CURVES_TOTAL; i++)
+        NewlyAdded[i] = -1;
 
-        if ((i = sscanf(Buff, "%d\n", &NumPoints)) != 1) {
+    t = 0;
+    while (ReadNextInput(Buff, DataFile)) {
+
+        if ((i = sscanf(Buff, "%d\n", &Order)) != 1) {
             ProtonLogError("Bad input file.");
             goto PANIC;
         }
 
-        CurvesAddEmptyBezier();
-        while (NumPoints && fgets(Buff, BUFF_SIZE, DataFile)) {
-            if (Buff[0] == '#' || !Buff[0])
-                continue;
+        if (!ReadNextInput(Buff, DataFile)) {
+            ProtonLogError("Bad input file.");
+            goto PANIC;
+        }
 
+        if ((i = sscanf(Buff, " \tknots[%d] =%n", &Knots, &n) == 1)) {
+            ProtonLogInfo("Detected B-Spline with %d knots and %d order", Knots, Order);
+            CurvesAddEmptyBspline();
+            PickedCurve -> Degree = Order - 1;
+            PickedCurve -> EndConditions = END_CONDITIONS_FLOATING;
+            NumPoints = Knots - Order;
+            memmove(Buff, Buff + n, BUFF_SIZE - n);
+        } else {
+            CurvesAddEmptyBezier();
+            PickedCurve -> Degree = Order - 1;
+            NumPoints = Order;
+            ProtonLogInfo("Detected bezier with %d control points", Order);
+        }
+        
+        NewlyAdded[t++] = PickedCurveIndx;
+        i = 0;
+        NumKnots = Knots;
+        while (Knots) {
+            if (sscanf(Buff, "%f%n", &k, &n) != 1) {
+                if (!ReadNextInput(Buff, DataFile)) {
+                    ProtonLogError("Bad input file.");
+                    goto PANIC;
+                }
+            } else  {
+                PickedCurve -> KnotVector[i++] = k;
+                memmove(Buff, Buff + n, BUFF_SIZE - n);
+                Knots--;
+            }
+        }
+
+        for (i = 0; i < NumKnots; i++)
+            PickedCurve -> KnotVector[i] = PickedCurve -> KnotVector[i] /
+                                           PickedCurve -> KnotVector[NumKnots - 1];
+
+        if (NumKnots && !ReadNextInput(Buff, DataFile)) {
+            ProtonLogError("Bad input file.");
+            goto PANIC;
+        }
+
+        do {
             if ((i = sscanf(Buff, "%f %f %f\n", &x, &y, &w)) == 2) { 
-                AddControlPoint(POINT(x, y));
+                AddControlPoint(POINT(x, -y));
             } else if (i == 3) {
-                AddControlPoint(POINT(x, y));
+                AddControlPoint(POINT_W((x / w), -(y / w), w));
             } else {
                 ProtonLogError("Bad input file.");
                 goto PANIC;
             }
-
             NumPoints--;
-        }
+        } while (NumPoints && ReadNextInput(Buff, DataFile));
     }
 
 PANIC:
     EditAngle = 0;
     EditZoom = 10.f;
-    for (i = 0; i < Curves[PickedCurveIndx].NumPoints; i++) {
-        Mid.x += PickedCurve -> CtrlPnts[i].x;
-        Mid.y += PickedCurve -> CtrlPnts[i].y;
-    }
-    Mid.x = -Mid.x / PickedCurve -> NumPoints;
-    Mid.y = -Mid.y / PickedCurve -> NumPoints;
 
-    PickedCurve -> NeedsRefresh = TRUE;
+    t = 0;
+    for (j = 0; NewlyAdded[j] != -1; j++) {
+        c = NewlyAdded[j];
+        for (i = 0; i < Curves[c].NumPoints; i++) {
+            Mid.x += Curves[c].CtrlPnts[i].x;
+            Mid.y += Curves[c].CtrlPnts[i].y;
+            t++;
+        }
+        PickedCurveIndx = c;
+        PickedCurve = &Curves[c];
+        Refresh();
+    }
+
+    Mid.x = Mid.x / t;
+    Mid.y = Mid.y / t;
+
     PickedCtrlPoint = INACTIVE;
+    PickedCurveIndx = INACTIVE;
+    PickedCurve = NULL;
     IsLoading = TRUE;
     fclose(DataFile);
 }
@@ -560,7 +646,7 @@ void DrawGrid(RealType t)
 
 void UpdateGhost(RealType Delta)
 {
-    IntType i;
+    IntType i, j, k;
 
     if (Keys['r']) {
         EditAngle += MouseWheel * Delta * 1e1;
@@ -569,49 +655,60 @@ void UpdateGhost(RealType Delta)
         EditZoom *= exp(MouseWheel * Delta * 1e1);
     }
 
-    for (i = 0; i < Curves[PickedCurveIndx].NumPoints; i++) {
-        Mid.x += PickedCurve -> CtrlPnts[i].x;
-        Mid.y += PickedCurve -> CtrlPnts[i].y;
-    }
-
-    Mid.x = -Mid.x / PickedCurve -> NumPoints;
-    Mid.y = -Mid.y / PickedCurve -> NumPoints;
-
     if (Buttons[M1] && !LastButtons[M1]) {
         ProtonPushTransform();
-        ProtonTranslate(Mid);
+        ProtonTranslate(POINT(-Mid.x, -Mid.y));
         ProtonScale(EditZoom);
         ProtonRotate(EditAngle);
         ProtonTranslate(SnappedPosition);
-        for (i = 0; i < Curves[PickedCurveIndx].NumPoints; i++)
-            PickedCurve -> CtrlPnts[i] =
-                ProtonWorldToScreen(PickedCurve -> CtrlPnts[i]);
+        for (j = 0; NewlyAdded[j] != -1; j++) {
+            k = NewlyAdded[j];
+            for (i = 0; i < Curves[k].NumPoints; i++) {
+                Curves[k].CtrlPnts[i] = ProtonWorldToScreen(Curves[k].CtrlPnts[i]);
+            }
+        }
         ProtonPopTransform();
         
-        IsLoading = FALSE;
         ProtonPushTransform();
         ProtonTranslate(POINT(-Pan.x, -Pan.y));
         ProtonScale(Zoom);
         ProtonTranslate(WIN_CENTRE);
-        for (i = 0; i < Curves[PickedCurveIndx].NumPoints; i++)
-            PickedCurve -> CtrlPnts[i] =
-                ProtonScreenToWorld(PickedCurve -> CtrlPnts[i]);
-        PickedCurve -> NeedsRefresh = TRUE;
+        for (j = 0; NewlyAdded[j] != -1; j++) {
+            k = NewlyAdded[j];
+            for (i = 0; i < Curves[k].NumPoints; i++) {
+                Curves[k].CtrlPnts[i] = ProtonScreenToWorld(Curves[k].CtrlPnts[i]);
+            }
+        }
+
+        RefreshAABB();
+        for (j = 0; NewlyAdded[j] != -1; j++) {
+            PickedCurveIndx = NewlyAdded[j];
+            PickedCurve = &Curves[PickedCurveIndx];
+            Refresh();
+        }
         ProtonPopTransform();
+
+        IsLoading = FALSE;
+        PickedCurve = NULL;
+        PickedCtrlPoint = INACTIVE;
+        PickedCurveIndx = INACTIVE;
     }
 
 }
 
 void DrawGhost()
 {
-    IntType i;
+    IntType i, k;
 
     ProtonPushTransform();
-    ProtonTranslate(Mid);
+    ProtonTranslate(POINT(-Mid.x, -Mid.y));
     ProtonScale(EditZoom);
     ProtonRotate(EditAngle);
     ProtonTranslate(SnappedPosition);
-    DrawCurveEval(PickedCurveIndx);
+    for (i = 0; NewlyAdded[i] != -1; i++)  {
+        k = NewlyAdded[i];
+        DrawCurveEval(k);
+    }
     ProtonPopTransform();
 }
 
@@ -764,53 +861,51 @@ void CurvesConnectCurves(ConnectionEnum Type)
 
 void DoConnection(IntType ID1, IntType ID2)
 {
-    void (*Funcs[3])(CurveStruct *, CurveStruct *);
     CurveStruct
         *Curve1 = &Curves[ID1],
         *Curve2 = &Curves[ID2];
 
-    if (Curve1 -> Type != Curve2 -> Type)
-        return;
     if (ID1 == ID2)
         return;
-  
-    if (Curve1 -> Type == CURVE_TYPE_BEZIER) {
-        if (Curve1 -> NumPoints == Curve2 -> NumPoints)
-            Funcs[0] = DoConnectionBezierC0;
-        else
-            Funcs[0] = DoConnectionBezierDiffC0;
-        Funcs[1] = DoConnectionBezierC1;
-        Funcs[2] = DoConnectionBezierG1;
-    } else {
-        Funcs[0] = DoConnectionBSplineC0;
-        Funcs[1] = DoConnectionBSplineC1;
-        Funcs[2] = DoConnectionBSplineG1;
-    }
+
+    /* Convert to b-spline if bezier.                                         */
+    if (Curve1 -> Type == CURVE_TYPE_BEZIER)
+        ConvertBezierToBSpline(Curve1);
+    if (Curve2 -> Type == CURVE_TYPE_BEZIER)
+        ConvertBezierToBSpline(Curve2);
+
 
     switch (ConnectionType) {
         case CONNECTION_C1:
-            Funcs[1](Curve1, Curve2);
+            DoConnectionC1(Curve1, Curve2);
             break;
         case CONNECTION_G1:
-            Funcs[2](Curve1, Curve2);
+            DoConnectionG1(Curve1, Curve2);
             break;
         default:
             break;
     }
-    Funcs[0](Curve1, Curve2);
+    if (Curve1 -> Degree == Curve2 -> Degree)
+        DoConnectionC0(Curve1, Curve2);
+    else 
+        DoConnectionDiffC0(Curve1, Curve2);
+    
+    Curve1 -> NumPoints = 0;
+    Curve2 -> NumPoints = 0;
 
-    Curves[ID1].NumPoints = 0;
-    Curves[ID2].NumPoints = 0;
     PickedCtrlPoint = INACTIVE;
     Refresh();
     RefreshAABB();
     IsConnecting = FALSE;
 }
 
-void DoConnectionBezierC0(CurveStruct *C1, CurveStruct *C2)
+void DoConnectionC0(CurveStruct *C1, CurveStruct *C2)
 {
     RealType OffsetX, OffsetY;
-    IntType i,
+    IntType i, k,
+        LenKnots1 = BSplineNumKnots(*C1),
+        LenKnots2 = BSplineNumKnots(*C2),
+        Middle = C1 -> Degree,
         Len1 = C1 -> NumPoints,
         Len2 = C2 -> NumPoints;
 
@@ -818,33 +913,43 @@ void DoConnectionBezierC0(CurveStruct *C1, CurveStruct *C2)
     OffsetY = C1 -> CtrlPnts[Len1 - 1].y - C2 -> CtrlPnts[0].y;
 
     CurvesAddEmptyBspline();
-    PickedCurve -> Degree = Len1 - 1;
+    PickedCurve -> Degree = C1 -> Degree;
 
     for (i = 0; i < Len1; i++) {
         AddControlPoint(C1 -> CtrlPnts[i]);
     }
 
     for (i = 1; i < Len2; i++) {
-        AddControlPoint(POINT(C2 -> CtrlPnts[i].x + OffsetX,
-                              C2 -> CtrlPnts[i].y + OffsetY));
+        AddControlPoint(POINT_W(C2 -> CtrlPnts[i].x + OffsetX,
+                                C2 -> CtrlPnts[i].y + OffsetY,
+                                C2 -> CtrlPnts[i].w));
     }
 
-    for (i = 0; i < Len1; i++)
-        PickedCurve -> KnotVector[i] = 0;
+    k = 0;
+    for (i = 0; i < LenKnots1 - Middle - 1; i++)
+        PickedCurve -> KnotVector[k++] = C1 -> KnotVector[i] / 2.f;
 
-    for (; i < BSplineNumKnots(*PickedCurve) - Len1; i++) 
-        PickedCurve -> KnotVector[i] = 0.5f;
+    for (i = 0; i < Middle; i++)
+        PickedCurve -> KnotVector[k++] = C1 -> KnotVector[LenKnots1 - Middle - 1] / 2.f;
 
-    for (; i < BSplineNumKnots(*PickedCurve); i++) 
-        PickedCurve -> KnotVector[i] = 1.f;
+    for (i = Middle + 1; i < LenKnots2; i++)
+        PickedCurve -> KnotVector[k++] = (C1 -> KnotVector[LenKnots1 - Middle - 1] + (C2 -> KnotVector[i] - C2 -> KnotVector[Middle])) / 2.f;
+
+    for (i = 0; i < k; i++) {
+        PickedCurve -> KnotVector[i] = PickedCurve -> KnotVector[i] /
+                                       PickedCurve -> KnotVector[k - 1];
+    }
+
 
     PickedCurve -> EndConditions = END_CONDITIONS_FLOATING;
 }
 
-void DoConnectionBezierDiffC0(CurveStruct *C1, CurveStruct *C2)
+void DoConnectionDiffC0(CurveStruct *C1, CurveStruct *C2)
 {
     RealType OffsetX, OffsetY;
     IntType i,
+        LenKnots1 = BSplineNumKnots(*C1),
+        LenKnots2 = BSplineNumKnots(*C2),
         Len1 = C1 -> NumPoints,
         Len2 = C2 -> NumPoints;
 
@@ -852,51 +957,49 @@ void DoConnectionBezierDiffC0(CurveStruct *C1, CurveStruct *C2)
     OffsetY = C1 -> CtrlPnts[Len1 - 1].y - C2 -> CtrlPnts[0].y;
 
     CurvesAddEmptyBspline();
-    PickedCurve -> Degree = Len1 - 1;
-    for (i = 0; i < Len1; i++) {
-        AddControlPoint(C1 -> CtrlPnts[i]);
-    }
-
+    PickedCurve -> Degree = C1 -> Degree;
     for (i = 0; i < Len1; i++)
-        PickedCurve -> KnotVector[i] = 0;
+        AddControlPoint(C1 -> CtrlPnts[i]);
+    for (i = 0; i < LenKnots1; i++)
+        PickedCurve -> KnotVector[i] = C1 -> KnotVector[i];
 
-    for (; i < BSplineNumKnots(*PickedCurve); i++) 
-        PickedCurve -> KnotVector[i] = 1.f;
+    for (i = LenKnots1 - C1 -> Degree - 1; i < LenKnots1; i++)
+        PickedCurve -> KnotVector[i] = PickedCurve -> KnotVector[LenKnots1 - 1];
 
     PickedCurve -> EndConditions = END_CONDITIONS_FLOATING;
     Refresh();
 
     CurvesAddEmptyBspline();
-    PickedCurve -> Degree = Len2 - 1;
-    for (i = 0; i < Len2; i++) {
-        AddControlPoint(POINT(C2 -> CtrlPnts[i].x + OffsetX,
-                              C2 -> CtrlPnts[i].y + OffsetY));
-    }
-
+    PickedCurve -> Degree = C2 -> Degree;
     for (i = 0; i < Len2; i++)
-        PickedCurve -> KnotVector[i] = 0;
-
-    for (; i < BSplineNumKnots(*PickedCurve); i++) 
-        PickedCurve -> KnotVector[i] = 1.f;
+        AddControlPoint(POINT_W(C2 -> CtrlPnts[i].x + OffsetX,
+                                C2 -> CtrlPnts[i].y + OffsetY,
+                                C2 -> CtrlPnts[i].w));
+    for (i = 0; i < LenKnots2; i++)
+        PickedCurve -> KnotVector[i] = C2 -> KnotVector[i];
+    for (i = 0; i <= C2 -> Degree; i++)
+        PickedCurve -> KnotVector[i] = C2 -> KnotVector[0];
 
     PickedCurve -> EndConditions = END_CONDITIONS_FLOATING;
     Refresh();
 }
 
-void DoConnectionBezierC1(CurveStruct *C1, CurveStruct *C2)
+void DoConnectionC1(CurveStruct *C1, CurveStruct *C2)
 {
     RealType OffsetX, OffsetY;
     IntType i,
         Len1 = C1 -> NumPoints;
+    RealType
+        Coeff = C1 -> Degree / (RealType) C2 -> Degree;
 
     OffsetX = C1 -> CtrlPnts[Len1 - 1].x - C1 -> CtrlPnts[Len1 - 2].x;
     OffsetY = C1 -> CtrlPnts[Len1 - 1].y - C1 -> CtrlPnts[Len1 - 2].y;
 
-    C2 -> CtrlPnts[1].x = C2 -> CtrlPnts[0].x + OffsetX;
-    C2 -> CtrlPnts[1].y = C2 -> CtrlPnts[0].y + OffsetY;
+    C2 -> CtrlPnts[1].x = C2 -> CtrlPnts[0].x + OffsetX * Coeff;
+    C2 -> CtrlPnts[1].y = C2 -> CtrlPnts[0].y + OffsetY * Coeff;
 }
 
-void DoConnectionBezierG1(CurveStruct *C1, CurveStruct *C2)
+void DoConnectionG1(CurveStruct *C1, CurveStruct *C2)
 {
     RealType OffsetX, OffsetY, OffsetXX, OffsetYY;
     RealType L1, L2;
@@ -919,35 +1022,73 @@ void DoConnectionBezierG1(CurveStruct *C1, CurveStruct *C2)
     C2 -> CtrlPnts[1].y = C2 -> CtrlPnts[0].y + OffsetY * L2;
 }
 
-void DoConnectionBSplineC0(CurveStruct *C1, CurveStruct *C2)
+void ConvertBezierToBSpline(CurveStruct *C)
 {
-    RealType OffsetX, OffsetY;
-    IntType i,
-        Len1 = C1 -> NumPoints,
-        Len2 = C2 -> NumPoints;
+    IntType i, NumKnots,
+        Len = C -> NumPoints;
 
-    OffsetX = C1 -> CtrlPnts[Len1 - 1].x - C2 -> CtrlPnts[0].x;
-    OffsetY = C1 -> CtrlPnts[Len1 - 1].y - C2 -> CtrlPnts[0].y;
+    C -> Type = CURVE_TYPE_BSPLINE;
+    C -> Degree = Len - 1;
+    NumKnots = BSplineNumKnots(*C);
+    
+    for (i = 0; i < Len; i++)
+        C -> KnotVector[i] = 0.f;
 
-    CurvesAddEmptyBspline();
-    PickedCurve -> Degree = Len1 - 1;
+    for (; i < NumKnots; i++)
+        C -> KnotVector[i] = 1.f;
 
-    for (i = 0; i < Len1; i++) {
-        AddControlPoint(C1 -> CtrlPnts[i]);
-    }
-
-    for (i = 1; i < Len2; i++) {
-        AddControlPoint(POINT(C2 -> CtrlPnts[i].x + OffsetX,
-                              C2 -> CtrlPnts[i].y + OffsetY));
-    }
-
-    PickedCurve -> EndConditions = END_CONDITIONS_FLOATING;
 }
 
-void DoConnectionBSplineC1(CurveStruct *C1, CurveStruct *C2)
+void CurvesDumpScene(const char *Path)
 {
+    IntType i;
+    FILE
+        *File = fopen(Path, "w");
+
+    fprintf(File, "# Created by Abed Na'aran\n");
+    for (i = 0; i < CURVES_TOTAL; i++) {
+        if (Curves[i].NumPoints)
+            DumpCurveToFile(Curves[i], File);
+    }
+
+    fclose(File);
 }
 
-void DoConnectionBSplineG1(CurveStruct *C1, CurveStruct *C2)
+void DumpCurveToFile(CurveStruct C, FILE *File)
 {
+    IntType i, k, 
+        Order = C.Degree + 1,
+        NumKnots = BSplineNumKnots(C);
+
+    if (C.Type == CURVE_TYPE_BEZIER) {
+        fprintf(File, "# Dumping bezier curve\n");
+        Order = C.NumPoints;
+    } else
+        fprintf(File, "# Dumping b-spline curve\n");
+
+    fprintf(File, "%d\n", Order);
+    
+    if (C.Type == CURVE_TYPE_BSPLINE) {
+        fprintf(File, "knots[%d] = ", NumKnots);
+        k = NumKnots / 4;
+        for (i = 0; i < k; i += 4)
+            fprintf(File,
+                    "%f %f %f %f \n",
+                    C.KnotVector[i],
+                    C.KnotVector[i + 1],
+                    C.KnotVector[i + 2],
+                    C.KnotVector[i + 3]);
+
+        for (;i < NumKnots; i++)
+            fprintf(File, " %f ", C.KnotVector[i]);
+        fprintf(File, "\n");
+    }
+    
+    for (i = 0; i < C.NumPoints; i++) 
+        fprintf(File,
+                "%f %f %f \n",
+                C.CtrlPnts[i].x * C.CtrlPnts[i].w / 100.f,
+                -C.CtrlPnts[i].y * C.CtrlPnts[i].w / 100.f,
+                C.CtrlPnts[i].w);
+
 }

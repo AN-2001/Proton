@@ -2,7 +2,7 @@
 #define FEEL_H
 #include "proton.h"
 
-#define CURVE_MAX_ORDER (64)
+#define CURVE_MAX_ORDER (1024)
 
 typedef enum CurveTypeEnum {
     CURVE_TYPE_BEZIER,
