@@ -7,8 +7,8 @@ A Bezier and B-spline curver editor written in C + SDL.
 * **intuitive control polygon editing**
 * **Intuitive knot vector editing**
 * **Automatic curve connection with support for C0, C1, G1 continuity**
-* **Import/Export of curves into the custom .dat file format.**                
-* **Normal/Tangnet/Osculating circle visualization.**
+* **Import/Export of curves into the custom .dat file format**                
+* **Normal/Tangnet/Osculating circle visualization**
 
 ## Images
 > ![](assets/proton1.png)
